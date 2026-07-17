@@ -72,7 +72,6 @@ export class Game {
     this.camera.lookAt(0, 0, 0);
     this.bindInterface();
     this.resize();
-    this.renderer.compile(this.scene, this.camera);
     requestAnimationFrame(() => {
       this.hud.finishLoading();
       this.tick();
