@@ -10,7 +10,7 @@ import {
   ModeManager,
   type GameMode,
 } from "../modes/GameMode";
-import { MultiplayerClient } from "../network/MultiplayerClient";
+import type { MultiplayerClient } from "../network/MultiplayerClient";
 import { RemoteCars } from "../network/RemoteCars";
 import { HUD } from "../ui/HUD";
 import { Car } from "../vehicle/Car";
@@ -33,8 +33,8 @@ export class Game {
   private readonly traffic: Traffic;
   private readonly trackFeatures: TrackFeatures;
   private readonly modeManager = new ModeManager();
-  private readonly multiplayer = new MultiplayerClient();
   private readonly remoteCars: RemoteCars;
+  private multiplayer: MultiplayerClient | null = null;
   private readonly audio = new AudioEngine();
   private readonly hud: HUD;
   private readonly cleanups: Array<() => void> = [];
@@ -102,7 +102,6 @@ export class Game {
     this.camera.lookAt(0, 0, 0);
     this.bindInterface();
     this.applyMode("exploration");
-    this.bindMultiplayer();
     this.resize();
     requestAnimationFrame(() => {
       this.hud.finishLoading();
@@ -205,8 +204,8 @@ export class Game {
     this.remoteCars.group.visible = definition.multiplayer;
   }
 
-  private bindMultiplayer() {
-    this.multiplayer.onStateChange = (state) => {
+  private bindMultiplayer(client: MultiplayerClient) {
+    client.onStateChange = (state) => {
       this.hud.setNetworkStatus(
         state === "connected"
           ? "Online"
@@ -217,16 +216,16 @@ export class Game {
               : "Solo",
       );
     };
-    this.multiplayer.onNotice = (message) => {
+    client.onNotice = (message) => {
       this.hud.showToast("⚑", message, "Race server synchronized");
     };
-    this.multiplayer.onSnapshot = (snapshot) => {
+    client.onSnapshot = (snapshot) => {
       this.remoteCars.applySnapshot(
         snapshot.players,
-        this.multiplayer.localPlayerId,
+        client.localPlayerId,
       );
       const local = snapshot.players.find(
-        (player) => player.id === this.multiplayer.localPlayerId,
+        (player) => player.id === client.localPlayerId,
       );
       if (local) {
         this.car.reconcile(local.normal, local.forward, local.speed);
@@ -242,6 +241,13 @@ export class Game {
   }
 
   private async connectMultiplayer() {
+    if (!this.multiplayer) {
+      const { MultiplayerClient } = await import(
+        "../network/MultiplayerClient"
+      );
+      this.multiplayer = new MultiplayerClient();
+      this.bindMultiplayer(this.multiplayer);
+    }
     const input = document.querySelector<HTMLInputElement>("#driver-name");
     const name = input?.value.trim() || "Road Runner";
     const result = await this.multiplayer.connect(name, this.selectedColor);
@@ -335,7 +341,7 @@ export class Game {
       if (airPoints >= 20) {
         this.totalStyleScore += airPoints;
         if (this.modeManager.current.multiplayer) {
-          this.multiplayer.sendScore({ kind: "air", points: airPoints });
+          this.multiplayer?.sendScore({ kind: "air", points: airPoints });
         }
         this.hud.showToast("↑", `${airPoints} air points`, "Clean landing");
       }
@@ -358,7 +364,7 @@ export class Game {
       const banked = Math.round(this.driftChain);
       this.totalStyleScore += banked;
       if (this.modeManager.current.multiplayer) {
-        this.multiplayer.sendScore({ kind: "drift", points: banked });
+        this.multiplayer?.sendScore({ kind: "drift", points: banked });
       }
       this.hud.showToast("〰", `${banked} drift points`, "Style score banked");
     }
@@ -383,7 +389,7 @@ export class Game {
       const input = this.controls.getInput();
       const telemetry = this.car.update(delta, input);
       if (this.modeManager.current.multiplayer) {
-        this.multiplayer.sendInput(input);
+        this.multiplayer?.sendInput(input);
       }
       this.updateDriftScore(delta, telemetry);
       const trigger = this.trackFeatures.update(
@@ -445,7 +451,7 @@ export class Game {
     this.running = false;
     for (const cleanup of this.cleanups) cleanup();
     this.controls.dispose();
-    this.multiplayer.disconnect();
+    this.multiplayer?.disconnect();
     this.audio.dispose();
     this.car.dispose();
     this.collectibles.dispose();
