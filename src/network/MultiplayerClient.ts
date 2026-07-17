@@ -53,13 +53,13 @@ export class MultiplayerClient {
       mode: "race",
     };
     this.setState("connecting");
-    this.socket = io<ServerToClientEvents, ClientToServerEvents>(url, {
+    this.socket = io(url, {
       autoConnect: false,
       transports: ["websocket", "polling"],
       reconnectionAttempts: 8,
       reconnectionDelay: 800,
       timeout: 5_000,
-    });
+    }) as Socket<ServerToClientEvents, ClientToServerEvents>;
 
     this.socket.on("room:snapshot", (snapshot) => {
       if (snapshot.protocol !== PROTOCOL_VERSION) return;
