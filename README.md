@@ -79,3 +79,12 @@ npm audit
 This first milestone is intentionally single-player. Gameplay systems are
 separated from rendering and input so a later multiplayer version can introduce
 server-authoritative input simulation without replacing the world or UI.
+
+## Deployment
+
+The included GitHub Actions workflow builds and deploys `main` to:
+
+`https://imshekhu.github.io/tinyroads/`
+
+In repository settings, select **GitHub Actions** as the Pages source. Each push
+to `main` then publishes the verified production bundle automatically.
