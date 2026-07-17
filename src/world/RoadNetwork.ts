@@ -24,10 +24,10 @@ export type RoadInfo = {
 export class RoadNetwork {
   readonly group = new THREE.Group();
   readonly samples: RoadSample[] = [];
+  private readonly surfaceRadiusAt: (normal: THREE.Vector3) => number;
 
-  constructor(
-    private readonly surfaceRadiusAt: (normal: THREE.Vector3) => number,
-  ) {
+  constructor(surfaceRadiusAt: (normal: THREE.Vector3) => number) {
+    this.surfaceRadiusAt = surfaceRadiusAt;
     this.group.name = "road-network";
     this.generateSamples();
     this.buildRoad();

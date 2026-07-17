@@ -17,11 +17,13 @@ export class Collectibles {
   collected = 0;
 
   private readonly items: Collectible[] = [];
+  private readonly onCollect: (position: THREE.Vector3, count: number) => void;
 
   constructor(
-    private readonly planet: Planet,
-    private readonly onCollect: (position: THREE.Vector3, count: number) => void,
+    planet: Planet,
+    onCollect: (position: THREE.Vector3, count: number) => void,
   ) {
+    this.onCollect = onCollect;
     this.group.name = "collectibles";
     const coreGeometry = new THREE.OctahedronGeometry(0.075, 0);
     const coreMaterial = new THREE.MeshStandardMaterial({

@@ -16,8 +16,10 @@ export class Planet {
 
   private terrain: THREE.Mesh;
   private ocean: THREE.Mesh;
+  readonly seed: number;
 
-  constructor(readonly seed = 7319) {
+  constructor(seed = 7319) {
+    this.seed = seed;
     this.group.name = "tiny-planet";
     this.terrain = this.buildTerrain();
     this.ocean = this.buildOcean();

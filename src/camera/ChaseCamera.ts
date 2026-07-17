@@ -2,16 +2,18 @@ import * as THREE from "three";
 import type { Car, CarTelemetry } from "../vehicle/Car";
 
 export class ChaseCamera {
+  readonly camera: THREE.PerspectiveCamera;
+  private readonly car: Car;
   private readonly desiredPosition = new THREE.Vector3();
   private readonly lookTarget = new THREE.Vector3();
   private readonly smoothedLookTarget = new THREE.Vector3();
   private readonly right = new THREE.Vector3();
   private shake = 0;
 
-  constructor(
-    readonly camera: THREE.PerspectiveCamera,
-    private readonly car: Car,
-  ) {}
+  constructor(camera: THREE.PerspectiveCamera, car: Car) {
+    this.camera = camera;
+    this.car = car;
+  }
 
   snap() {
     const position = this.car.mesh.group.position;

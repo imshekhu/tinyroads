@@ -28,14 +28,19 @@ export class Race {
   private passedFinalSector = false;
   private insideGate = false;
   private bestTime: number | null;
+  private readonly onEvent: (
+    type: "start" | "checkpoint" | "finish",
+    snapshot: RaceSnapshot,
+  ) => void;
 
   constructor(
     planet: Planet,
-    private readonly onEvent: (
+    onEvent: (
       type: "start" | "checkpoint" | "finish",
       snapshot: RaceSnapshot,
     ) => void,
   ) {
+    this.onEvent = onEvent;
     this.group.name = "road-race";
     const savedBest = Number(localStorage.getItem("tinyroads-best-lap"));
     this.bestTime = Number.isFinite(savedBest) && savedBest > 0 ? savedBest : null;

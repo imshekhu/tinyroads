@@ -21,11 +21,10 @@ export class Atmosphere {
   private readonly nightColor = new THREE.Color(COLORS.skyNight);
   private readonly workingColor = new THREE.Color();
   private readonly cycleSeconds = 180;
+  private readonly scene: THREE.Scene;
 
-  constructor(
-    private readonly scene: THREE.Scene,
-    seed = 991,
-  ) {
+  constructor(scene: THREE.Scene, seed = 991) {
+    this.scene = scene;
     this.group.name = "atmosphere";
     this.sunLight = new THREE.DirectionalLight(0xfff1c4, 3.2);
     this.sunLight.castShadow = true;

@@ -35,12 +35,11 @@ export class Car {
 
   private readonly orientation = new THREE.Quaternion();
   private readonly targetOrientation = new THREE.Quaternion();
+  private readonly planet: Planet;
   private spawnIndex = 0;
 
-  constructor(
-    private readonly planet: Planet,
-    color: number,
-  ) {
+  constructor(planet: Planet, color: number) {
+    this.planet = planet;
     this.mesh = new CarMesh(color);
     this.reset();
   }
