@@ -32,7 +32,10 @@ export class Game {
 
   private running = true;
   private started = false;
-  private elapsed = 27;
+  private elapsed =
+    new URLSearchParams(window.location.search).get("sky") === "night"
+      ? 122
+      : 27;
   private selectedColor = CAR_PALETTE[0].value;
   private waterResetCooldown = 0;
   private driftChain = 0;
@@ -260,7 +263,8 @@ export class Game {
   private tick = () => {
     if (!this.running) return;
     requestAnimationFrame(this.tick);
-    const delta = Math.min(this.clock.getDelta(), 0.05);
+    // Preserve arcade pace on lower-end devices while bounding unstable steps.
+    const delta = Math.min(this.clock.getDelta(), 0.1);
     if (delta <= 0) return;
     this.elapsed += delta;
     const sky = this.atmosphere.update(this.elapsed);
