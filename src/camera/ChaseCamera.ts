@@ -8,19 +8,21 @@ export class ChaseCamera {
   private readonly lookTarget = new THREE.Vector3();
   private readonly smoothedLookTarget = new THREE.Vector3();
   private readonly right = new THREE.Vector3();
+  private readonly compactView: boolean;
   private shake = 0;
 
   constructor(camera: THREE.PerspectiveCamera, car: Car) {
     this.camera = camera;
     this.car = car;
+    this.compactView = window.innerWidth < 760;
   }
 
   snap() {
     const position = this.car.mesh.group.position;
     this.camera.position
       .copy(position)
-      .addScaledVector(this.car.normal, 0.62)
-      .addScaledVector(this.car.forward, -1.05);
+      .addScaledVector(this.car.normal, this.compactView ? 0.7 : 0.62)
+      .addScaledVector(this.car.forward, this.compactView ? -1.28 : -1.05);
     this.smoothedLookTarget
       .copy(position)
       .addScaledVector(this.car.forward, 0.42)
@@ -35,8 +37,10 @@ export class ChaseCamera {
 
   update(delta: number, telemetry: CarTelemetry) {
     const carPosition = this.car.mesh.group.position;
-    const distance = 0.92 + telemetry.speedRatio * 0.34;
-    const height = 0.47 + telemetry.speedRatio * 0.12;
+    const distance =
+      (this.compactView ? 1.18 : 0.92) + telemetry.speedRatio * 0.34;
+    const height =
+      (this.compactView ? 0.58 : 0.47) + telemetry.speedRatio * 0.12;
     this.right
       .crossVectors(this.car.normal, this.car.forward)
       .normalize();

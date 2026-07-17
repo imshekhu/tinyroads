@@ -92,6 +92,12 @@ export class CarMesh {
       [0, 0.275, 0.061],
     );
     windshield.rotation.x = -0.19;
+    const rearWindow = this.addMesh(
+      new THREE.BoxGeometry(0.245, 0.1, 0.012),
+      glass,
+      [0, 0.27, -0.196],
+    );
+    rearWindow.rotation.x = 0.16;
 
     this.addMesh(
       new THREE.BoxGeometry(0.012, 0.1, 0.15),
