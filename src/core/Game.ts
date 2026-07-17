@@ -6,6 +6,12 @@ import { Collectibles } from "../gameplay/Collectibles";
 import { Race, type RaceSnapshot } from "../gameplay/Race";
 import { Traffic } from "../gameplay/Traffic";
 import { Controls } from "../input/Controls";
+import {
+  ModeManager,
+  type GameMode,
+} from "../modes/GameMode";
+import { MultiplayerClient } from "../network/MultiplayerClient";
+import { RemoteCars } from "../network/RemoteCars";
 import { HUD } from "../ui/HUD";
 import { Car } from "../vehicle/Car";
 import { Atmosphere } from "../world/Atmosphere";
@@ -26,6 +32,9 @@ export class Game {
   private readonly race: Race;
   private readonly traffic: Traffic;
   private readonly trackFeatures: TrackFeatures;
+  private readonly modeManager = new ModeManager();
+  private readonly multiplayer = new MultiplayerClient();
+  private readonly remoteCars: RemoteCars;
   private readonly audio = new AudioEngine();
   private readonly hud: HUD;
   private readonly cleanups: Array<() => void> = [];
@@ -41,6 +50,8 @@ export class Game {
   private driftChain = 0;
   private driftGrace = 0;
   private totalStyleScore = 0;
+  private airChain = 0;
+  private wasAirborne = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -64,6 +75,7 @@ export class Game {
     this.trackFeatures = new TrackFeatures(this.planet.road);
     this.traffic = new Traffic(this.planet.road);
     this.car = new Car(this.planet, this.selectedColor);
+    this.remoteCars = new RemoteCars(this.planet);
     this.race = new Race(this.planet, (type, snapshot) =>
       this.onRaceEvent(type, snapshot),
     );
@@ -80,6 +92,7 @@ export class Game {
       this.atmosphere.group,
       this.trackFeatures.group,
       this.traffic.group,
+      this.remoteCars.group,
       this.car.mesh.group,
       this.car.smoke.group,
       this.collectibles.group,
@@ -88,6 +101,8 @@ export class Game {
     this.camera.position.set(10, 6.5, 9);
     this.camera.lookAt(0, 0, 0);
     this.bindInterface();
+    this.applyMode("exploration");
+    this.bindMultiplayer();
     this.resize();
     requestAnimationFrame(() => {
       this.hud.finishLoading();
@@ -103,10 +118,26 @@ export class Game {
       this.audio.start();
       this.chaseCamera.snap();
       this.hud.enterGame();
-      this.hud.showToast("◆", "Welcome to the loop", "Find the glowing start gate");
+      const mode = this.modeManager.current;
+      this.hud.showToast("◆", mode.name, mode.objective);
+      if (mode.multiplayer) void this.connectMultiplayer();
     };
     driveButton.addEventListener("click", start);
     this.cleanups.push(() => driveButton.removeEventListener("click", start));
+
+    document.querySelectorAll<HTMLButtonElement>(".mode-card").forEach((button) => {
+      const select = () => {
+        const mode = button.dataset.mode as GameMode;
+        this.applyMode(mode);
+        document.querySelectorAll(".mode-card").forEach((card) => {
+          const active = card === button;
+          card.classList.toggle("is-active", active);
+          card.setAttribute("aria-pressed", String(active));
+        });
+      };
+      button.addEventListener("click", select);
+      this.cleanups.push(() => button.removeEventListener("click", select));
+    });
 
     document.querySelectorAll<HTMLButtonElement>(".paint-swatch").forEach((button) => {
       const choose = () => {
@@ -165,6 +196,62 @@ export class Game {
           this.onVisibilityChange,
         ),
     );
+  }
+
+  private applyMode(mode: GameMode) {
+    const definition = this.modeManager.select(mode);
+    this.hud.setMode(mode);
+    this.race.group.visible = definition.raceEnabled;
+    this.remoteCars.group.visible = definition.multiplayer;
+  }
+
+  private bindMultiplayer() {
+    this.multiplayer.onStateChange = (state) => {
+      this.hud.setNetworkStatus(
+        state === "connected"
+          ? "Online"
+          : state === "connecting"
+            ? "Connecting"
+            : state === "error"
+              ? "Solo fallback"
+              : "Solo",
+      );
+    };
+    this.multiplayer.onNotice = (message) => {
+      this.hud.showToast("⚑", message, "Race server synchronized");
+    };
+    this.multiplayer.onSnapshot = (snapshot) => {
+      this.remoteCars.applySnapshot(
+        snapshot.players,
+        this.multiplayer.localPlayerId,
+      );
+      const local = snapshot.players.find(
+        (player) => player.id === this.multiplayer.localPlayerId,
+      );
+      if (local) {
+        this.car.reconcile(local.normal, local.forward, local.speed);
+      }
+      if (snapshot.phase === "countdown" && snapshot.countdownEndsAt) {
+        const seconds = Math.max(
+          0,
+          Math.ceil((snapshot.countdownEndsAt - Date.now()) / 1000),
+        );
+        this.hud.setNetworkStatus(`Start ${seconds}`);
+      }
+    };
+  }
+
+  private async connectMultiplayer() {
+    const input = document.querySelector<HTMLInputElement>("#driver-name");
+    const name = input?.value.trim() || "Road Runner";
+    const result = await this.multiplayer.connect(name, this.selectedColor);
+    if (!result.ok) {
+      this.hud.showToast(
+        "!",
+        "Practice room",
+        "Race server unavailable — driving locally",
+      );
+    }
   }
 
   private readonly onVisibilityChange = () => {
@@ -240,6 +327,21 @@ export class Game {
     delta: number,
     telemetry: ReturnType<Car["update"]>,
   ) {
+    if (telemetry.airborne) {
+      this.airChain += delta * 240 * (0.6 + telemetry.speedRatio);
+      this.wasAirborne = true;
+    } else if (this.wasAirborne) {
+      const airPoints = Math.round(this.airChain);
+      if (airPoints >= 20) {
+        this.totalStyleScore += airPoints;
+        if (this.modeManager.current.multiplayer) {
+          this.multiplayer.sendScore({ kind: "air", points: airPoints });
+        }
+        this.hud.showToast("↑", `${airPoints} air points`, "Clean landing");
+      }
+      this.airChain = 0;
+      this.wasAirborne = false;
+    }
     const active =
       Math.abs(telemetry.drift) > 0.055 && telemetry.speedRatio > 0.32;
     if (active) {
@@ -255,6 +357,9 @@ export class Game {
     if (this.driftChain >= 20) {
       const banked = Math.round(this.driftChain);
       this.totalStyleScore += banked;
+      if (this.modeManager.current.multiplayer) {
+        this.multiplayer.sendScore({ kind: "drift", points: banked });
+      }
       this.hud.showToast("〰", `${banked} drift points`, "Style score banked");
     }
     this.driftChain = 0;
@@ -270,24 +375,36 @@ export class Game {
     const sky = this.atmosphere.update(this.elapsed);
     this.planet.update(this.elapsed);
     this.traffic.update(delta, this.elapsed);
+    this.remoteCars.update(delta);
 
     if (!this.started) {
       this.updatePreview(delta);
     } else {
       const input = this.controls.getInput();
       const telemetry = this.car.update(delta, input);
+      if (this.modeManager.current.multiplayer) {
+        this.multiplayer.sendInput(input);
+      }
       this.updateDriftScore(delta, telemetry);
-      if (
-        this.trackFeatures.update(
-          delta,
-          this.elapsed,
-          this.car.normal,
-        )
-      ) {
+      const trigger = this.trackFeatures.update(
+        delta,
+        this.elapsed,
+        this.car.normal,
+      );
+      if (trigger.boost) {
         this.car.applyTrackBoost();
         this.audio.checkpoint();
         this.chaseCamera.addShake(0.28);
         this.hud.showToast("»", "Track boost", "Hold the racing line");
+      }
+      if (
+        trigger.ramp &&
+        this.modeManager.current.stuntEnabled &&
+        this.car.launch(this.modeManager.current.id === "freestyle" ? 1.05 : 0.82)
+      ) {
+        this.audio.raceStart();
+        this.chaseCamera.addShake(0.2);
+        this.hud.showToast("↑", "Air time", "Stay composed for the landing");
       }
       this.chaseCamera.update(delta, telemetry);
       this.collectibles.update(this.elapsed, this.car.normal);
@@ -298,7 +415,7 @@ export class Game {
         this.collectibles.collected,
         this.collectibles.total,
         sky,
-        this.driftChain,
+        this.driftChain + this.airChain,
         this.totalStyleScore,
       );
       this.audio.update(
@@ -328,12 +445,14 @@ export class Game {
     this.running = false;
     for (const cleanup of this.cleanups) cleanup();
     this.controls.dispose();
+    this.multiplayer.disconnect();
     this.audio.dispose();
     this.car.dispose();
     this.collectibles.dispose();
     this.race.dispose();
     this.traffic.dispose();
     this.trackFeatures.dispose();
+    this.remoteCars.dispose();
     this.planet.dispose();
     this.atmosphere.dispose();
     this.renderer.dispose();

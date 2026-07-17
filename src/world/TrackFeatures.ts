@@ -9,10 +9,21 @@ type BoostPad = {
   cooldown: number;
 };
 
+type Ramp = {
+  normal: THREE.Vector3;
+  cooldown: number;
+};
+
+export type TrackTrigger = {
+  boost: boolean;
+  ramp: boolean;
+};
+
 export class TrackFeatures {
   readonly group = new THREE.Group();
   private readonly road: RoadNetwork;
   private readonly pads: BoostPad[] = [];
+  private readonly ramps: Ramp[] = [];
   private readonly boostMaterial = new THREE.MeshStandardMaterial({
     color: 0x3ce5ff,
     emissive: 0x0aa9d4,
@@ -25,6 +36,7 @@ export class TrackFeatures {
     this.road = road;
     this.group.name = "arcade-track-features";
     this.buildBoostPads();
+    this.buildRamps();
     this.buildTrackArches();
     this.buildBillboards();
     this.buildSignalTowers();
@@ -113,6 +125,45 @@ export class TrackFeatures {
     });
   }
 
+  private buildRamps() {
+    const selections = [
+      this.road.samples[268],
+      this.road.highlandSamples[188],
+      this.road.connectorSamples[72],
+    ];
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xff6d35,
+      emissive: 0x8f210a,
+      emissiveIntensity: 0.4,
+      roughness: 0.48,
+    });
+    for (const sample of selections) {
+      const ramp = new THREE.Group();
+      const deck = new THREE.Mesh(
+        new THREE.BoxGeometry(ROAD_WIDTH * 0.86, 0.035, 0.34),
+        material,
+      );
+      deck.position.y = 0.055;
+      deck.rotation.x = -0.18;
+      ramp.add(deck);
+      for (const x of [-0.1, 0.1]) {
+        const stripe = new THREE.Mesh(
+          new THREE.BoxGeometry(0.025, 0.039, 0.3),
+          new THREE.MeshBasicMaterial({ color: 0xffd750 }),
+        );
+        stripe.position.set(x, 0.075, 0);
+        stripe.rotation.x = -0.18;
+        ramp.add(stripe);
+      }
+      this.placeAt(ramp, sample, 0.055);
+      ramp.traverse((object) => {
+        if (object instanceof THREE.Mesh) object.castShadow = true;
+      });
+      this.group.add(ramp);
+      this.ramps.push({ normal: sample.normal, cooldown: 0 });
+    }
+  }
+
   private buildBillboards() {
     const samples = [
       this.road.samples[82],
@@ -199,7 +250,11 @@ export class TrackFeatures {
     });
   }
 
-  update(delta: number, elapsed: number, carNormal: THREE.Vector3) {
+  update(
+    delta: number,
+    elapsed: number,
+    carNormal: THREE.Vector3,
+  ): TrackTrigger {
     this.boostMaterial.emissiveIntensity = 1.3 + Math.sin(elapsed * 7) * 0.55;
     let triggered = false;
     for (const pad of this.pads) {
@@ -213,7 +268,18 @@ export class TrackFeatures {
         triggered = true;
       }
     }
-    return triggered;
+    let launched = false;
+    for (const ramp of this.ramps) {
+      ramp.cooldown = Math.max(0, ramp.cooldown - delta);
+      if (
+        ramp.cooldown === 0 &&
+        angularDistance(carNormal, ramp.normal) * PLANET_RADIUS < 0.15
+      ) {
+        ramp.cooldown = 2.5;
+        launched = true;
+      }
+    }
+    return { boost: triggered, ramp: launched };
   }
 
   dispose() {

@@ -20,6 +20,8 @@ export type CarTelemetry = {
   boost: number;
   roadProgress: number;
   route: "coast" | "highland" | "connector";
+  airborne: boolean;
+  airtime: number;
 };
 
 export class Car {
@@ -33,6 +35,9 @@ export class Car {
   boost = 1;
   onRoad = true;
   driftAmount = 0;
+  airborneOffset = 0;
+  verticalVelocity = 0;
+  airtime = 0;
 
   private readonly orientation = new THREE.Quaternion();
   private readonly targetOrientation = new THREE.Quaternion();
@@ -58,6 +63,9 @@ export class Car {
     this.velocityDirection.copy(this.forward);
     this.speed = 0;
     this.boost = 1;
+    this.airborneOffset = 0;
+    this.verticalVelocity = 0;
+    this.airtime = 0;
     this.applyTransform(true);
   }
 
@@ -68,6 +76,41 @@ export class Car {
   applyTrackBoost() {
     this.speed = Math.max(this.speed + 0.5, 1.15);
     this.boost = Math.min(1, this.boost + 0.28);
+  }
+
+  launch(force = 0.82) {
+    if (this.airborneOffset > 0.02 || this.speed < 0.35) return false;
+    this.verticalVelocity = force;
+    this.airborneOffset = 0.012;
+    this.airtime = 0;
+    return true;
+  }
+
+  reconcile(
+    normal: [number, number, number],
+    forward: [number, number, number],
+    speed: number,
+  ) {
+    const authoritativeNormal = new THREE.Vector3().fromArray(normal).normalize();
+    const authoritativeForward = new THREE.Vector3().fromArray(forward).normalize();
+    const error = 1 - this.normal.dot(authoritativeNormal);
+    if (error > 0.000002) {
+      slerpDirection(
+        this.normal,
+        authoritativeNormal,
+        error > 0.002 ? 0.2 : 0.06,
+        this.normal,
+      );
+      this.forward
+        .lerp(authoritativeForward, 0.08)
+        .addScaledVector(this.normal, -this.forward.dot(this.normal))
+        .normalize();
+      this.velocityDirection
+        .lerp(this.forward, 0.12)
+        .addScaledVector(this.normal, -this.velocityDirection.dot(this.normal))
+        .normalize();
+    }
+    this.speed = THREE.MathUtils.lerp(this.speed, speed, 0.04);
   }
 
   update(delta: number, input: DriveInput): CarTelemetry {
@@ -157,6 +200,18 @@ export class Car {
         .normalize();
     }
 
+    if (this.airborneOffset > 0 || this.verticalVelocity > 0) {
+      this.verticalVelocity -= 1.42 * delta;
+      this.airborneOffset += this.verticalVelocity * delta;
+      this.airtime += delta;
+      if (this.airborneOffset <= 0) {
+        this.airborneOffset = 0;
+        this.verticalVelocity = 0;
+      }
+    } else {
+      this.airtime = 0;
+    }
+
     this.applyTransform(false, delta);
     this.mesh.update(this.speed, input.steering, delta, this.driftAmount);
 
@@ -166,11 +221,13 @@ export class Car {
       position,
       this.normal,
       this.velocityDirection.clone().multiplyScalar(-1),
-      Math.min(
+      this.airborneOffset > 0
+        ? 0
+        : Math.min(
         1,
         Math.abs(this.driftAmount) * 2.4 +
           (!this.onRoad ? speedRatio * 0.65 : 0),
-      ),
+          ),
       !this.onRoad,
     );
 
@@ -183,11 +240,16 @@ export class Car {
       boost: this.boost,
       roadProgress: roadInfo.progress,
       route: roadInfo.route,
+      airborne: this.airborneOffset > 0,
+      airtime: this.airtime,
     };
   }
 
   private applyTransform(immediate: boolean, delta = 0) {
-    const radius = this.planet.surfaceRadiusAt(this.normal) + CAR_CLEARANCE;
+    const radius =
+      this.planet.surfaceRadiusAt(this.normal) +
+      CAR_CLEARANCE +
+      this.airborneOffset;
     this.mesh.group.position.copy(this.normal).multiplyScalar(radius);
     orientationFromFrame(this.normal, this.forward, this.targetOrientation);
     if (immediate) {

@@ -18,6 +18,9 @@ test("loads the original world without runtime errors", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Tiny Roads" })).toBeVisible();
   await expect(page.getByText("A tiny driving adventure")).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Choose game mode" }).getByRole("button"),
+  ).toHaveCount(3);
   await expect(page.locator("#loading-screen")).toHaveClass(/is-done/, {
     timeout: 20_000,
   });
@@ -43,7 +46,7 @@ test("starts a drive and responds to keyboard controls", async ({
 
   await expect(page.locator("#game-ui")).toHaveClass(/is-visible/);
   await expect(page.locator("#start-screen")).toHaveClass(/is-hidden/);
-  await expect(page.getByText("Welcome to the loop")).toBeVisible();
+  await expect(page.locator("#toast-title")).toHaveText("Open Planet");
 
   await page.keyboard.down("w");
   await page.waitForTimeout(1_500);
@@ -53,6 +56,14 @@ test("starts a drive and responds to keyboard controls", async ({
 
   await page.keyboard.press("r");
   await expect(page.getByText("Back on route")).toBeVisible();
+});
+
+test("switches into freestyle mode with mode-specific HUD", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /Stunt Planet/ }).click();
+  await page.getByRole("button", { name: "Start your engine" }).click();
+  await expect(page.locator("#network-status")).toHaveText("Freestyle");
+  await expect(page.locator("#race-card")).toHaveClass(/is-mode-hidden/);
 });
 
 test("opens the driver handbook and restores focusable UI", async ({ page }) => {

@@ -23,6 +23,9 @@ Touch controls and standard gamepads are supported.
 
 ## Features
 
+- Three modes: Open Planet exploration, online Planet Prix, and Stunt Planet
+- Socket.io multiplayer rooms with server-ticked car inputs and snapshots
+- Client prediction, lightweight reconciliation, reconnect, and remote cars
 - Quaternion-based driving around a complete spherical planet
 - Deterministic terrain, ocean, villages, forests, and a three-route track network
 - Original low-poly procedural car with selectable paint
@@ -51,6 +54,8 @@ src/
 ├── ui/          Start screen, HUD, and accessibility
 ├── vehicle/     Car physics, mesh, and drift smoke
 └── world/       Terrain, roads, props, sky, and seeded noise
+server/           Socket.io rooms and authoritative simulation
+shared/           Versioned runtime-validated network protocol
 ```
 
 The player position is a unit surface normal. Movement advances that normal
@@ -67,10 +72,20 @@ npm install
 npm run dev
 ```
 
+Run the browser client and multiplayer server together:
+
+```sh
+npm run dev:full
+```
+
+The client runs on port 5173 and the multiplayer server on port 3001.
+
 Production verification:
 
 ```sh
 npm run typecheck
+npm run typecheck:server
+npm run test:unit
 npm run build
 npx playwright install chromium
 npm run test:e2e
@@ -79,9 +94,11 @@ npm audit
 
 ## Current scope
 
-This first milestone is intentionally single-player. Gameplay systems are
-separated from rendering and input so a later multiplayer version can introduce
-server-authoritative input simulation without replacing the world or UI.
+The multiplayer vertical slice supports real-time rooms, server simulation,
+race countdowns, score events, shared exploration collectibles, snapshots,
+remote cars, and reconnect handling. Production hosting still needs a
+persistent Node.js service and should add durable identity, matchmaking,
+results storage, moderation, and horizontally scalable room coordination.
 
 ## Deployment
 
@@ -91,3 +108,6 @@ The included GitHub Actions workflow builds and deploys `main` to:
 
 In repository settings, select **GitHub Actions** as the Pages source. Each push
 to `main` then publishes the verified production bundle automatically.
+
+GitHub Pages hosts only the static client. Set `VITE_MULTIPLAYER_URL` to a
+separately deployed persistent server; see `.env.example`.

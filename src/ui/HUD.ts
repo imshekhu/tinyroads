@@ -1,5 +1,9 @@
 import { CAR_PALETTE } from "../config";
 import type { RaceSnapshot } from "../gameplay/Race";
+import {
+  MODE_DEFINITIONS,
+  type GameMode,
+} from "../modes/GameMode";
 import type { CarTelemetry } from "../vehicle/Car";
 import type { SkyState } from "../world/Atmosphere";
 
@@ -26,6 +30,28 @@ export function mountInterface(root: HTMLElement) {
           Race coast roads, climb the highland loop, hit boost strips,
           and build the cleanest drift chain on the planet.
         </p>
+        <div class="mode-picker" role="group" aria-label="Choose game mode">
+          ${Object.values(MODE_DEFINITIONS)
+            .map(
+              (mode, index) => `
+                <button
+                  type="button"
+                  class="mode-card ${index === 0 ? "is-active" : ""}"
+                  data-mode="${mode.id}"
+                  aria-pressed="${index === 0 ? "true" : "false"}"
+                >
+                  <span>${mode.label}</span>
+                  <b>${mode.name}</b>
+                  <small>${mode.objective}</small>
+                </button>
+              `,
+            )
+            .join("")}
+        </div>
+        <label class="driver-name">
+          <span>Driver name</span>
+          <input id="driver-name" maxlength="20" value="Road Runner" autocomplete="nickname" />
+        </label>
         <div class="paint-picker" role="group" aria-label="Choose car colour">
           <p>Pick your paint</p>
           <div>
@@ -73,6 +99,8 @@ export function mountInterface(root: HTMLElement) {
           <span id="sky-phase">Day drive</span>
           <i></i>
           <span id="surface-status">On route</span>
+          <i></i>
+          <span id="network-status">Solo</span>
         </div>
         <div class="header-actions">
           <button id="mute-button" type="button" aria-label="Mute sound">
@@ -208,6 +236,8 @@ export class HUD {
   private readonly styleScore =
     document.querySelector<HTMLElement>("#style-score")!;
   private readonly toast = document.querySelector<HTMLElement>("#toast")!;
+  private readonly networkStatus =
+    document.querySelector<HTMLElement>("#network-status")!;
   private toastTimer: number | null = null;
 
   constructor(totalCollectibles: number) {
@@ -222,6 +252,26 @@ export class HUD {
     this.startScreen.classList.add("is-hidden");
     this.ui.classList.add("is-visible");
     this.ui.setAttribute("aria-hidden", "false");
+  }
+
+  setMode(mode: GameMode) {
+    const definition = MODE_DEFINITIONS[mode];
+    document
+      .querySelector<HTMLElement>("#race-card")!
+      .classList.toggle("is-mode-hidden", !definition.raceEnabled);
+    document.querySelector<HTMLElement>(".objective-card .ui-label")!.textContent =
+      mode === "freestyle" ? "Stunt run / 01" : "Road trip / 01";
+    document.querySelector<HTMLElement>(".race-card .ui-label")!.textContent =
+      mode === "multiplayer-race" ? "Live planet prix / 02" : "Island loop / 02";
+    this.networkStatus.textContent = definition.multiplayer
+      ? "Connecting"
+      : mode === "freestyle"
+        ? "Freestyle"
+        : "Solo";
+  }
+
+  setNetworkStatus(status: string) {
+    this.networkStatus.textContent = status;
   }
 
   update(
