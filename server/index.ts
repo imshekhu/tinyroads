@@ -82,7 +82,7 @@ export function createGameServer() {
 
   const tickRate = 30;
   const timer = setInterval(() => manager.update(1 / tickRate), 1000 / tickRate);
-  timer.unref();
+  if (!process.env.PLAYWRIGHT_REUSE_SERVER) timer.unref();
 
   return {
     app,
@@ -90,7 +90,18 @@ export function createGameServer() {
     httpServer,
     manager,
     listen(port: number) {
-      return new Promise<number>((resolve) => {
+      return new Promise<number>((resolve, reject) => {
+        httpServer.once("error", (error: NodeJS.ErrnoException) => {
+          if (
+            error.code === "EADDRINUSE" &&
+            process.env.PLAYWRIGHT_REUSE_SERVER
+          ) {
+            console.log(`Reusing Tiny Roads multiplayer server on :${port}`);
+            resolve(port);
+            return;
+          }
+          reject(error);
+        });
         httpServer.listen(port, "0.0.0.0", () => {
           const address = httpServer.address();
           resolve(typeof address === "object" && address ? address.port : port);
@@ -112,7 +123,13 @@ export function createGameServer() {
 if (process.env.NODE_ENV !== "test") {
   const port = Number(process.env.PORT || 3001);
   const server = createGameServer();
-  server.listen(port).then((activePort) => {
-    console.log(`Tiny Roads multiplayer server listening on :${activePort}`);
-  });
+  server
+    .listen(port)
+    .then((activePort) => {
+      console.log(`Tiny Roads multiplayer server listening on :${activePort}`);
+    })
+    .catch((error) => {
+      console.error("Tiny Roads multiplayer server failed to start", error);
+      process.exitCode = 1;
+    });
 }

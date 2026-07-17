@@ -3,8 +3,8 @@ import { defineConfig } from "vite";
 export default defineConfig({
   base: process.env.GITHUB_ACTIONS ? "/tinyroads/" : "/",
   build: {
-    // Three.js is intentionally shipped as one cacheable game bundle. Its
-    // 148 KB gzip size remains inside the project's first-load budget.
-    chunkSizeWarningLimit: 600,
+    // Three.js is intentionally shipped as one cacheable core game bundle.
+    // The core is ~156 KB gzip; multiplayer loads separately at ~32 KB gzip.
+    chunkSizeWarningLimit: 620,
   },
 });

@@ -23,7 +23,7 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: "npm run server",
+      command: "PLAYWRIGHT_REUSE_SERVER=1 npm run server",
       url: "http://localhost:3001/health",
       reuseExistingServer: true,
       timeout: 120_000,
