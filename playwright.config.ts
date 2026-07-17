@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
+  testMatch: "**/*.spec.ts",
   timeout: 60_000,
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
@@ -23,10 +24,13 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: "PLAYWRIGHT_REUSE_SERVER=1 npm run server",
+      command: "npm run server",
       url: "http://localhost:3001/health",
       reuseExistingServer: true,
       timeout: 120_000,
+      env: {
+        PLAYWRIGHT_REUSE_SERVER: "1",
+      },
     },
   ],
   projects: [
