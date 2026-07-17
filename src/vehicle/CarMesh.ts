@@ -139,6 +139,19 @@ export class CarMesh {
       dark,
       [0, 0.325, -0.08],
     );
+    const headlamp = new THREE.SpotLight(
+      0xffe7ae,
+      4.5,
+      2.8,
+      0.48,
+      0.65,
+      1.2,
+    );
+    headlamp.position.set(0, 0.15, 0.26);
+    headlamp.target.position.set(0, 0.02, 1.7);
+    headlamp.castShadow = false;
+    this.visual.add(headlamp, headlamp.target);
+
     const driverHead = this.addMesh(
       new THREE.SphereGeometry(0.055, 10, 7),
       new THREE.MeshStandardMaterial({

@@ -87,10 +87,9 @@ export class Traffic {
       const current = car.route[index];
       const next = car.route[nextIndex];
       const normal = slerpDirection(current.normal, next.normal, alpha);
-      const tangent = current.tangent
-        .clone()
-        .lerp(next.tangent, alpha)
-        .addScaledVector(normal, -current.tangent.clone().lerp(next.tangent, alpha).dot(normal))
+      const tangent = current.tangent.clone().lerp(next.tangent, alpha);
+      tangent
+        .addScaledVector(normal, -tangent.dot(normal))
         .normalize();
       const right = new THREE.Vector3().crossVectors(normal, tangent).normalize();
       car.group.position

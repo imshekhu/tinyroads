@@ -55,7 +55,11 @@ export class RoadNetwork {
   readonly connectorSamples: RoadSample[] = [];
 
   private readonly routes: RoadRoute[] = [];
-  private readonly allSamples: Array<{ sample: RoadSample; route: RoadRoute }> = [];
+  private readonly allSamples: Array<{
+    sample: RoadSample;
+    route: RoadRoute;
+    index: number;
+  }> = [];
   private readonly surfaceRadiusAt: (normal: THREE.Vector3) => number;
 
   constructor(surfaceRadiusAt: (normal: THREE.Vector3) => number) {
@@ -139,7 +143,9 @@ export class RoadNetwork {
       },
     );
     for (const route of this.routes) {
-      for (const sample of route.samples) this.allSamples.push({ sample, route });
+      route.samples.forEach((sample, index) => {
+        this.allSamples.push({ sample, route, index });
+      });
     }
   }
 
@@ -384,13 +390,12 @@ export class RoadNetwork {
       }
     }
 
-    const routeIndex = closest.route.samples.indexOf(closest.sample);
     return {
       distance: angularDistance(normal, closest.sample.normal) * PLANET_RADIUS,
       index: mainIndex,
       tangent: closest.sample.tangent,
       normal: closest.sample.normal,
-      progress: routeIndex / Math.max(1, closest.route.samples.length - 1),
+      progress: closest.index / Math.max(1, closest.route.samples.length - 1),
       route: closest.route.id,
     };
   }

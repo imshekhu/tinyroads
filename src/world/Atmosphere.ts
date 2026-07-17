@@ -378,7 +378,7 @@ export class Atmosphere {
     this.shootingStarMaterial.opacity =
       nightVisibility * Math.max(0, Math.sin(elapsed * 0.34)) * 0.78;
     const cloudMaterial = this.clouds.material as THREE.MeshBasicMaterial;
-    cloudMaterial.opacity = 0.28 + daylight * 0.52;
+    cloudMaterial.opacity = 0.08 + daylight * 0.72;
     this.clouds.rotation.y = elapsed * 0.003;
     this.stars.rotation.y = elapsed * 0.0015;
     this.shootingStars.rotation.y = elapsed * 0.006;
