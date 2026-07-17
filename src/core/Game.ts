@@ -40,7 +40,10 @@ export class Game {
       alpha: false,
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
-    this.renderer.shadowMap.enabled = true;
+    const constrainedDevice =
+      window.matchMedia("(pointer: coarse)").matches ||
+      window.innerWidth < 760;
+    this.renderer.shadowMap.enabled = !constrainedDevice;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
