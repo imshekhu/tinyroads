@@ -131,12 +131,11 @@ export class Atmosphere {
     const count = 74;
     const clouds = new THREE.InstancedMesh(
       new THREE.IcosahedronGeometry(0.18, 1),
-      new THREE.MeshPhongMaterial({
+      new THREE.MeshBasicMaterial({
         color: 0xfff8e7,
         transparent: true,
-        opacity: 0.78,
+        opacity: 0.72,
         depthWrite: false,
-        flatShading: true,
       }),
       count,
     );
@@ -205,7 +204,7 @@ export class Atmosphere {
 
     const starMaterial = this.stars.material as THREE.PointsMaterial;
     starMaterial.opacity = THREE.MathUtils.clamp((0.45 - daylight) * 2.1, 0, 0.9);
-    const cloudMaterial = this.clouds.material as THREE.MeshPhongMaterial;
+    const cloudMaterial = this.clouds.material as THREE.MeshBasicMaterial;
     cloudMaterial.opacity = 0.28 + daylight * 0.52;
     this.clouds.rotation.y = elapsed * 0.003;
     this.stars.rotation.y = elapsed * 0.0015;

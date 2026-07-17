@@ -9,6 +9,7 @@ export class CarMesh {
   readonly group = new THREE.Group();
   readonly bodyMaterial: THREE.MeshStandardMaterial;
 
+  private readonly visual = new THREE.Group();
   private readonly wheels: WheelAssembly[] = [];
   private readonly frontWheels: WheelAssembly[] = [];
   private wheelRotation = 0;
@@ -21,6 +22,7 @@ export class CarMesh {
       metalness: 0.08,
       flatShading: true,
     });
+    this.group.add(this.visual);
     this.buildBody();
     this.buildWheels();
     this.group.scale.setScalar(0.72);
@@ -37,7 +39,7 @@ export class CarMesh {
     if (scale) mesh.scale.set(...scale);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    this.group.add(mesh);
+    this.visual.add(mesh);
     return mesh;
   }
 
@@ -182,7 +184,7 @@ export class CarMesh {
         );
         hub.rotation.z = Math.PI / 2;
         wheel.add(hub);
-        this.group.add(pivot);
+        this.visual.add(pivot);
         const assembly = { pivot, wheel };
         this.wheels.push(assembly);
         if (z > 0) this.frontWheels.push(assembly);
@@ -202,13 +204,13 @@ export class CarMesh {
     for (const assembly of this.frontWheels) {
       assembly.pivot.rotation.y = -steering * 0.45;
     }
-    this.group.rotation.z = THREE.MathUtils.lerp(
-      this.group.rotation.z,
+    this.visual.rotation.z = THREE.MathUtils.lerp(
+      this.visual.rotation.z,
       -steering * Math.min(Math.abs(speed), 1) * 0.07,
       1 - Math.exp(-delta * 8),
     );
-    this.group.rotation.y = THREE.MathUtils.lerp(
-      this.group.rotation.y,
+    this.visual.rotation.y = THREE.MathUtils.lerp(
+      this.visual.rotation.y,
       -drift * 0.16,
       1 - Math.exp(-delta * 7),
     );
