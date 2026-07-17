@@ -66,6 +66,19 @@ test("switches into freestyle mode with mode-specific HUD", async ({ page }) => 
   await expect(page.locator("#race-card")).toHaveClass(/is-mode-hidden/);
 });
 
+test("joins a live multiplayer race room", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes("mobile"), "Run one network client");
+  await page.goto("/");
+  await page.getByLabel("Driver name").fill("Browser Racer");
+  await page.getByRole("button", { name: /Planet Prix/ }).click();
+  await page.getByRole("button", { name: "Start your engine" }).click();
+  await expect(page.locator("#network-status")).not.toHaveText(
+    /Solo fallback|Connecting/,
+    { timeout: 10_000 },
+  );
+  await expect(page.locator("#race-card")).not.toHaveClass(/is-mode-hidden/);
+});
+
 test("opens the driver handbook and restores focusable UI", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Start your engine" }).click();
