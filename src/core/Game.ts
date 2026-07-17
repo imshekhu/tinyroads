@@ -236,6 +236,12 @@ export class Game {
           Math.ceil((snapshot.countdownEndsAt - Date.now()) / 1000),
         );
         this.hud.setNetworkStatus(`Start ${seconds}`);
+      } else if (snapshot.phase === "racing") {
+        this.hud.setNetworkStatus(
+          `${snapshot.players.length} ${snapshot.players.length === 1 ? "racer" : "racers"}`,
+        );
+      } else if (snapshot.phase === "results") {
+        this.hud.setNetworkStatus("Results");
       }
     };
   }
