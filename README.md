@@ -24,13 +24,16 @@ Touch controls and standard gamepads are supported.
 ## Features
 
 - Quaternion-based driving around a complete spherical planet
-- Deterministic terrain, ocean, road, villages, trees, rocks, and clouds
+- Deterministic terrain, ocean, villages, forests, and a three-route track network
 - Original low-poly procedural car with selectable paint
-- Arcade grip, off-road drag, handbrake drifting, boost, and dust effects
+- Coast circuit, highland loop, and coloured connector shortcut
+- Track arches, guard rails, boost strips, billboards, signal towers, and AI traffic
+- Arcade grip, off-road drag, handbrake drifting, boost, and drift scoring
 - Smooth radial chase camera with speed-sensitive FOV and shake
-- Eighteen collectible golden bolts
+- Twenty-four collectible golden bolts spread across every route
 - Eight-checkpoint timed island race with persistent personal best
-- Day, sunset, and night lighting with atmosphere, stars, and moving clouds
+- Gradient day, sunset, and night skies with twinkling stars, shooting stars,
+  celestial bodies, atmosphere, and moving clouds
 - Procedural Web Audio engine and event sounds—no bundled audio assets
 - Responsive desktop, touch, and gamepad controls
 - Reduced-motion and keyboard-accessible UI

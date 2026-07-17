@@ -4,11 +4,13 @@ import { ChaseCamera } from "../camera/ChaseCamera";
 import { CAR_PALETTE, OCEAN_LEVEL } from "../config";
 import { Collectibles } from "../gameplay/Collectibles";
 import { Race, type RaceSnapshot } from "../gameplay/Race";
+import { Traffic } from "../gameplay/Traffic";
 import { Controls } from "../input/Controls";
 import { HUD } from "../ui/HUD";
 import { Car } from "../vehicle/Car";
 import { Atmosphere } from "../world/Atmosphere";
 import { Planet } from "../world/Planet";
+import { TrackFeatures } from "../world/TrackFeatures";
 
 export class Game {
   private readonly renderer: THREE.WebGLRenderer;
@@ -22,6 +24,8 @@ export class Game {
   private readonly chaseCamera: ChaseCamera;
   private readonly collectibles: Collectibles;
   private readonly race: Race;
+  private readonly traffic: Traffic;
+  private readonly trackFeatures: TrackFeatures;
   private readonly audio = new AudioEngine();
   private readonly hud: HUD;
   private readonly cleanups: Array<() => void> = [];
@@ -31,6 +35,9 @@ export class Game {
   private elapsed = 27;
   private selectedColor = CAR_PALETTE[0].value;
   private waterResetCooldown = 0;
+  private driftChain = 0;
+  private driftGrace = 0;
+  private totalStyleScore = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -51,6 +58,8 @@ export class Game {
 
     this.planet = new Planet();
     this.atmosphere = new Atmosphere(this.scene);
+    this.trackFeatures = new TrackFeatures(this.planet.road);
+    this.traffic = new Traffic(this.planet.road);
     this.car = new Car(this.planet, this.selectedColor);
     this.race = new Race(this.planet, (type, snapshot) =>
       this.onRaceEvent(type, snapshot),
@@ -66,6 +75,8 @@ export class Game {
     this.scene.add(
       this.planet.group,
       this.atmosphere.group,
+      this.trackFeatures.group,
+      this.traffic.group,
       this.car.mesh.group,
       this.car.smoke.group,
       this.collectibles.group,
@@ -222,6 +233,30 @@ export class Game {
     this.car.mesh.update(0, 0, delta, 0);
   }
 
+  private updateDriftScore(
+    delta: number,
+    telemetry: ReturnType<Car["update"]>,
+  ) {
+    const active =
+      Math.abs(telemetry.drift) > 0.055 && telemetry.speedRatio > 0.32;
+    if (active) {
+      this.driftGrace = 0.65;
+      this.driftChain +=
+        Math.abs(telemetry.drift) * telemetry.speedRatio * delta * 1450;
+      return;
+    }
+    if (this.driftGrace > 0) {
+      this.driftGrace -= delta;
+      return;
+    }
+    if (this.driftChain >= 20) {
+      const banked = Math.round(this.driftChain);
+      this.totalStyleScore += banked;
+      this.hud.showToast("〰", `${banked} drift points`, "Style score banked");
+    }
+    this.driftChain = 0;
+  }
+
   private tick = () => {
     if (!this.running) return;
     requestAnimationFrame(this.tick);
@@ -230,12 +265,26 @@ export class Game {
     this.elapsed += delta;
     const sky = this.atmosphere.update(this.elapsed);
     this.planet.update(this.elapsed);
+    this.traffic.update(delta, this.elapsed);
 
     if (!this.started) {
       this.updatePreview(delta);
     } else {
       const input = this.controls.getInput();
       const telemetry = this.car.update(delta, input);
+      this.updateDriftScore(delta, telemetry);
+      if (
+        this.trackFeatures.update(
+          delta,
+          this.elapsed,
+          this.car.normal,
+        )
+      ) {
+        this.car.applyTrackBoost();
+        this.audio.checkpoint();
+        this.chaseCamera.addShake(0.28);
+        this.hud.showToast("»", "Track boost", "Hold the racing line");
+      }
       this.chaseCamera.update(delta, telemetry);
       this.collectibles.update(this.elapsed, this.car.normal);
       const race = this.race.update(delta, this.elapsed, this.car.normal);
@@ -245,6 +294,8 @@ export class Game {
         this.collectibles.collected,
         this.collectibles.total,
         sky,
+        this.driftChain,
+        this.totalStyleScore,
       );
       this.audio.update(
         telemetry.speedRatio,
@@ -277,6 +328,8 @@ export class Game {
     this.car.dispose();
     this.collectibles.dispose();
     this.race.dispose();
+    this.traffic.dispose();
+    this.trackFeatures.dispose();
     this.planet.dispose();
     this.atmosphere.dispose();
     this.renderer.dispose();

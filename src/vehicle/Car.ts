@@ -19,6 +19,7 @@ export type CarTelemetry = {
   drift: number;
   boost: number;
   roadProgress: number;
+  route: "coast" | "highland" | "connector";
 };
 
 export class Car {
@@ -64,13 +65,18 @@ export class Car {
     this.mesh.setColor(color);
   }
 
+  applyTrackBoost() {
+    this.speed = Math.max(this.speed + 0.5, 1.15);
+    this.boost = Math.min(1, this.boost + 0.28);
+  }
+
   update(delta: number, input: DriveInput): CarTelemetry {
     const roadInfo = this.planet.road.getRoadInfo(this.normal);
     this.onRoad = roadInfo.distance < ROAD_WIDTH * 0.72;
 
-    const maxForwardSpeed = this.onRoad ? 1.72 : 0.78;
+    const maxForwardSpeed = this.onRoad ? 2.08 : 0.88;
     const maxReverseSpeed = -0.42;
-    const acceleration = this.onRoad ? 1.45 : 0.82;
+    const acceleration = this.onRoad ? 1.78 : 0.92;
     const boostActive = input.boost && this.boost > 0.015 && this.speed > 0.25;
     const speedLimit = boostActive ? maxForwardSpeed * 1.32 : maxForwardSpeed;
 
@@ -91,7 +97,7 @@ export class Car {
     }
 
     if (boostActive) {
-      this.speed += 1.15 * delta;
+      this.speed += 1.38 * delta;
       this.boost = Math.max(0, this.boost - delta * 0.32);
     } else {
       this.boost = Math.min(1, this.boost + delta * (this.onRoad ? 0.075 : 0.035));
@@ -170,12 +176,13 @@ export class Car {
 
     return {
       speed: this.speed,
-      speedKph: Math.abs(this.speed) * 76,
+      speedKph: Math.abs(this.speed) * 82,
       speedRatio,
       onRoad: this.onRoad,
       drift: this.driftAmount,
       boost: this.boost,
       roadProgress: roadInfo.progress,
+      route: roadInfo.route,
     };
   }
 

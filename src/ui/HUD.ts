@@ -23,8 +23,8 @@ export function mountInterface(root: HTMLElement) {
         <p class="kicker">A tiny driving adventure</p>
         <h1 id="game-title"><span>Tiny</span> Roads</h1>
         <p class="start-copy">
-          Drift around a living little planet, collect golden bolts,
-          and chase your fastest lap.
+          Race coast roads, climb the highland loop, hit boost strips,
+          and build the cleanest drift chain on the planet.
         </p>
         <div class="paint-picker" role="group" aria-label="Choose car colour">
           <p>Pick your paint</p>
@@ -118,6 +118,12 @@ export function mountInterface(root: HTMLElement) {
         </div>
       </div>
 
+      <div class="drift-hud" id="drift-hud">
+        <span>DRIFT CHAIN</span>
+        <strong><i id="drift-score">0</i> pts</strong>
+        <small>STYLE <b id="style-score">0</b></small>
+      </div>
+
       <div class="toast" id="toast" role="status" aria-live="polite">
         <span id="toast-icon">✦</span>
         <div><b id="toast-title">Golden bolt</b><p id="toast-copy">Keep exploring</p></div>
@@ -195,6 +201,12 @@ export class HUD {
     document.querySelector<HTMLElement>("#race-status")!;
   private readonly raceBest =
     document.querySelector<HTMLElement>("#race-best")!;
+  private readonly driftHud =
+    document.querySelector<HTMLElement>("#drift-hud")!;
+  private readonly driftScore =
+    document.querySelector<HTMLElement>("#drift-score")!;
+  private readonly styleScore =
+    document.querySelector<HTMLElement>("#style-score")!;
   private readonly toast = document.querySelector<HTMLElement>("#toast")!;
   private toastTimer: number | null = null;
 
@@ -218,14 +230,27 @@ export class HUD {
     collected: number,
     total: number,
     sky: SkyState,
+    driftChain: number,
+    totalStyleScore: number,
   ) {
+    this.ui.style.setProperty(
+      "--speed-intensity",
+      String(Math.max(0, (telemetry.speedRatio - 0.5) * 0.75)),
+    );
     this.speedValue.textContent = String(Math.round(telemetry.speedKph));
     this.speedRing.style.setProperty(
       "--speed",
       `${Math.round(telemetry.speedRatio * 270)}deg`,
     );
     this.boostLevel.style.width = `${Math.round(telemetry.boost * 100)}%`;
-    this.surfaceStatus.textContent = telemetry.onRoad ? "On route" : "Off-road";
+    const routeNames = {
+      coast: "Coast circuit",
+      highland: "Highland loop",
+      connector: "Sky connector",
+    };
+    this.surfaceStatus.textContent = telemetry.onRoad
+      ? routeNames[telemetry.route]
+      : "Off-road";
     this.surfaceStatus.classList.toggle("is-warning", !telemetry.onRoad);
     this.skyPhase.textContent =
       sky.phase === "night"
@@ -246,6 +271,9 @@ export class HUD {
     this.raceBest.textContent = race.bestTime
       ? `Best ${formatTime(race.bestTime)}`
       : "Best —";
+    this.driftScore.textContent = String(Math.round(driftChain));
+    this.styleScore.textContent = String(totalStyleScore);
+    this.driftHud.classList.toggle("is-active", driftChain >= 8);
   }
 
   showToast(icon: string, title: string, copy: string) {

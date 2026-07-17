@@ -7,7 +7,11 @@ import {
 } from "../config";
 import { orientationFromFrame, tangentNorth } from "../math/SphericalMath";
 import { fbm3D, SeededRandom } from "./Noise";
-import { RoadNetwork } from "./RoadNetwork";
+import {
+  highlandRouteLatitude,
+  mainRouteLatitude,
+  RoadNetwork,
+} from "./RoadNetwork";
 
 export class Planet {
   readonly group = new THREE.Group();
@@ -36,12 +40,26 @@ export class Planet {
   terrainHeight(normal: THREE.Vector3) {
     const n = normal;
     const theta = Math.atan2(n.z, n.x);
-    const routeLatitude =
-      Math.sin(theta * 3 + 0.35) * 0.17 +
-      Math.sin(theta * 7 - 0.8) * 0.045;
-    const routeY = Math.sin(routeLatitude);
-    const routeDistance = Math.abs(n.y - routeY);
-    const roadContinent = Math.max(0, 1 - routeDistance / 0.22) * 0.28;
+    const mainY = Math.sin(mainRouteLatitude(theta));
+    const highlandY = Math.sin(highlandRouteLatitude(theta));
+    const loopDistance = Math.min(
+      Math.abs(n.y - mainY),
+      Math.abs(n.y - highlandY),
+    );
+    const connectorTheta = 0.72;
+    const thetaDistance = Math.abs(
+      Math.atan2(
+        Math.sin(theta - connectorTheta),
+        Math.cos(theta - connectorTheta),
+      ),
+    );
+    const lowY = Math.min(mainY, highlandY);
+    const highY = Math.max(mainY, highlandY);
+    const yOutside =
+      n.y < lowY ? lowY - n.y : n.y > highY ? n.y - highY : 0;
+    const connectorDistance = Math.max(thetaDistance * 0.65, yOutside);
+    const routeDistance = Math.min(loopDistance, connectorDistance);
+    const roadContinent = Math.max(0, 1 - routeDistance / 0.22) * 0.29;
     const broad = fbm3D(n.x * 1.65, n.y * 1.65, n.z * 1.65, this.seed, 4);
     const detail = fbm3D(n.x * 5.2, n.y * 5.2, n.z * 5.2, this.seed + 91, 3);
     const mountain = Math.max(

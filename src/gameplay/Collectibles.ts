@@ -13,7 +13,7 @@ type Collectible = {
 
 export class Collectibles {
   readonly group = new THREE.Group();
-  readonly total = 18;
+  readonly total = 24;
   collected = 0;
 
   private readonly items: Collectible[] = [];
@@ -42,10 +42,18 @@ export class Collectibles {
     });
 
     for (let index = 0; index < this.total; index += 1) {
+      const route =
+        index < 16
+          ? planet.road.samples
+          : index < 22
+            ? planet.road.highlandSamples
+            : planet.road.connectorSamples;
+      const routeIndex =
+        index < 16 ? index : index < 22 ? index - 16 : index - 22;
+      const routeCount = index < 16 ? 16 : index < 22 ? 6 : 2;
       const sampleIndex =
-        (18 + index * Math.floor(planet.road.samples.length / this.total)) %
-        planet.road.samples.length;
-      const sample = planet.road.samples[sampleIndex];
+        (18 + routeIndex * Math.floor(route.length / routeCount)) % route.length;
+      const sample = route[sampleIndex];
       const item = new THREE.Group();
       const core = new THREE.Mesh(coreGeometry, coreMaterial);
       core.castShadow = true;

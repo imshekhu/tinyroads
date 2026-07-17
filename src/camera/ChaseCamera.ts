@@ -56,7 +56,7 @@ export class ChaseCamera {
 
     this.lookTarget
       .copy(carPosition)
-      .addScaledVector(this.car.forward, 0.42 + telemetry.speedRatio * 0.26)
+      .addScaledVector(this.car.forward, 0.48 + telemetry.speedRatio * 0.42)
       .addScaledVector(this.car.normal, 0.08);
     this.smoothedLookTarget.lerp(
       this.lookTarget,
@@ -73,7 +73,7 @@ export class ChaseCamera {
     }
 
     this.camera.lookAt(this.smoothedLookTarget);
-    const targetFov = 58 + telemetry.speedRatio * 13;
+    const targetFov = 59 + telemetry.speedRatio * 18;
     this.camera.fov = THREE.MathUtils.lerp(
       this.camera.fov,
       targetFov,

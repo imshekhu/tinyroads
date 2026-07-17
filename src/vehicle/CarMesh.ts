@@ -25,7 +25,7 @@ export class CarMesh {
     this.group.add(this.visual);
     this.buildBody();
     this.buildWheels();
-    this.group.scale.setScalar(0.72);
+    this.group.scale.setScalar(0.56);
   }
 
   private addMesh(
