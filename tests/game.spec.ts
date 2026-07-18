@@ -66,6 +66,30 @@ test("switches into freestyle mode with mode-specific HUD", async ({ page }) => 
   await expect(page.locator("#race-card")).toHaveClass(/is-mode-hidden/);
 });
 
+test("pauses, resumes, and exits cleanly to mode selection", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Start your engine" }).click();
+  await page.getByRole("button", { name: "Pause game" }).click();
+  await expect(page.getByRole("heading", { name: "Game paused" })).toBeVisible();
+  await page.getByRole("button", { name: "Resume driving" }).click();
+  await expect(page.getByRole("heading", { name: "Game paused" })).not.toBeVisible();
+  await page.getByRole("button", { name: "Exit to mode selection" }).click();
+  await expect(page.getByRole("button", { name: "Start your engine" })).toBeVisible();
+  await expect(page.locator("#game-ui")).toHaveAttribute("inert", "");
+});
+
+test("driver name accepts driving-key characters before gameplay", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const name = page.getByLabel("Driver name");
+  await name.fill("");
+  await name.pressSequentially("Adam West");
+  await expect(name).toHaveValue("Adam West");
+});
+
 test("joins a live multiplayer race room", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name.includes("mobile"), "Run one network client");
   await page.goto("/");
@@ -99,8 +123,10 @@ test("shows usable touch driving controls on mobile", async ({
 
   const accelerate = page.getByRole("button", { name: "Accelerate" });
   const steer = page.getByRole("button", { name: "Steer left" });
+  const boost = page.getByRole("button", { name: "Boost" });
   await expect(accelerate).toBeVisible();
   await expect(steer).toBeVisible();
+  await expect(boost).toBeVisible();
 
   await accelerate.dispatchEvent("pointerdown", {
     pointerId: 1,

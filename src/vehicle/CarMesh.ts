@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 
 type WheelAssembly = {
   pivot: THREE.Group;
@@ -7,7 +8,7 @@ type WheelAssembly = {
 
 export class CarMesh {
   readonly group = new THREE.Group();
-  readonly bodyMaterial: THREE.MeshStandardMaterial;
+  readonly bodyMaterial: THREE.MeshPhysicalMaterial;
 
   private readonly visual = new THREE.Group();
   private readonly wheels: WheelAssembly[] = [];
@@ -15,28 +16,27 @@ export class CarMesh {
   private wheelRotation = 0;
 
   constructor(color: number) {
-    this.group.name = "player-car";
-    this.bodyMaterial = new THREE.MeshStandardMaterial({
+    this.group.name = "modern-player-car";
+    this.bodyMaterial = new THREE.MeshPhysicalMaterial({
       color,
-      roughness: 0.5,
-      metalness: 0.08,
-      flatShading: true,
+      roughness: 0.24,
+      metalness: 0.42,
+      clearcoat: 0.8,
+      clearcoatRoughness: 0.16,
     });
     this.group.add(this.visual);
     this.buildBody();
     this.buildWheels();
-    this.group.scale.setScalar(0.56);
+    this.group.scale.setScalar(0.38);
   }
 
   private addMesh(
     geometry: THREE.BufferGeometry,
     material: THREE.Material,
     position: [number, number, number],
-    scale?: [number, number, number],
   ) {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(...position);
-    if (scale) mesh.scale.set(...scale);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     this.visual.add(mesh);
@@ -44,165 +44,140 @@ export class CarMesh {
   }
 
   private buildBody() {
-    const cream = new THREE.MeshStandardMaterial({
-      color: 0xffefd1,
-      roughness: 0.72,
-      flatShading: true,
-    });
-    const glass = new THREE.MeshStandardMaterial({
-      color: 0x8fd1df,
-      roughness: 0.22,
-      metalness: 0.05,
+    const glass = new THREE.MeshPhysicalMaterial({
+      color: 0x163b4c,
+      roughness: 0.08,
+      metalness: 0.15,
+      transmission: 0.18,
       transparent: true,
-      opacity: 0.82,
+      opacity: 0.9,
+      clearcoat: 1,
     });
-    const dark = new THREE.MeshStandardMaterial({
-      color: 0x24272b,
-      roughness: 0.65,
+    const carbon = new THREE.MeshStandardMaterial({
+      color: 0x171a1d,
+      roughness: 0.32,
+      metalness: 0.45,
     });
-    const chrome = new THREE.MeshStandardMaterial({
-      color: 0xe7e2d6,
-      roughness: 0.3,
-      metalness: 0.5,
+    const metal = new THREE.MeshStandardMaterial({
+      color: 0xaeb8bb,
+      roughness: 0.24,
+      metalness: 0.82,
     });
-    const headlight = new THREE.MeshBasicMaterial({ color: 0xfff4b0 });
-    const taillight = new THREE.MeshBasicMaterial({ color: 0xf24b45 });
+    const headlight = new THREE.MeshBasicMaterial({ color: 0xe9fbff });
+    const taillight = new THREE.MeshBasicMaterial({ color: 0xff3148 });
 
-    const chassis = this.addMesh(
-      new THREE.BoxGeometry(0.38, 0.13, 0.62, 2, 1, 2),
+    this.addMesh(
+      new RoundedBoxGeometry(0.34, 0.1, 0.66, 4, 0.045),
       this.bodyMaterial,
-      [0, 0.11, 0],
+      [0, 0.105, 0],
     );
-    chassis.geometry.rotateX(0.015);
-
-    this.addMesh(
-      new THREE.BoxGeometry(0.33, 0.08, 0.22),
+    const hood = this.addMesh(
+      new RoundedBoxGeometry(0.31, 0.07, 0.28, 3, 0.035),
       this.bodyMaterial,
-      [0, 0.19, 0.18],
+      [0, 0.165, 0.19],
     );
-    this.addMesh(
-      new THREE.BoxGeometry(0.3, 0.17, 0.25),
-      cream,
-      [0, 0.235, -0.07],
-    );
+    hood.rotation.x = -0.035;
 
-    const windshield = this.addMesh(
-      new THREE.BoxGeometry(0.25, 0.11, 0.012),
+    const cabin = this.addMesh(
+      new RoundedBoxGeometry(0.255, 0.13, 0.27, 4, 0.05),
       glass,
-      [0, 0.275, 0.061],
+      [0, 0.225, -0.055],
     );
-    windshield.rotation.x = -0.19;
-    const rearWindow = this.addMesh(
-      new THREE.BoxGeometry(0.245, 0.1, 0.012),
-      glass,
-      [0, 0.27, -0.196],
+    cabin.scale.set(0.96, 1, 1);
+    const roof = this.addMesh(
+      new RoundedBoxGeometry(0.22, 0.028, 0.22, 3, 0.02),
+      carbon,
+      [0, 0.298, -0.062],
     );
-    rearWindow.rotation.x = 0.16;
+    roof.rotation.x = 0.01;
 
-    this.addMesh(
-      new THREE.BoxGeometry(0.012, 0.1, 0.15),
-      glass,
-      [-0.157, 0.265, -0.06],
-    );
-    this.addMesh(
-      new THREE.BoxGeometry(0.012, 0.1, 0.15),
-      glass,
-      [0.157, 0.265, -0.06],
-    );
-
-    this.addMesh(
-      new THREE.BoxGeometry(0.42, 0.035, 0.07),
-      chrome,
-      [0, 0.07, 0.322],
-    );
-    this.addMesh(
-      new THREE.BoxGeometry(0.42, 0.035, 0.06),
-      chrome,
-      [0, 0.075, -0.31],
-    );
-
-    for (const x of [-0.12, 0.12]) {
+    for (const x of [-0.145, 0.145]) {
       this.addMesh(
-        new THREE.BoxGeometry(0.07, 0.045, 0.012),
+        new RoundedBoxGeometry(0.055, 0.025, 0.018, 2, 0.008),
         headlight,
-        [x, 0.15, 0.318],
+        [x, 0.145, 0.329],
       );
       this.addMesh(
-        new THREE.BoxGeometry(0.065, 0.04, 0.012),
+        new RoundedBoxGeometry(0.07, 0.022, 0.014, 2, 0.007),
         taillight,
-        [x, 0.145, -0.316],
+        [x, 0.15, -0.331],
       );
     }
 
     this.addMesh(
-      new THREE.CylinderGeometry(0.055, 0.06, 0.12, 8),
-      dark,
-      [0, 0.325, -0.08],
+      new RoundedBoxGeometry(0.36, 0.025, 0.05, 2, 0.008),
+      carbon,
+      [0, 0.07, 0.325],
     );
+    this.addMesh(
+      new RoundedBoxGeometry(0.37, 0.025, 0.055, 2, 0.008),
+      carbon,
+      [0, 0.07, -0.325],
+    );
+    for (const x of [-0.18, 0.18]) {
+      this.addMesh(
+        new RoundedBoxGeometry(0.025, 0.025, 0.5, 2, 0.008),
+        carbon,
+        [x, 0.065, -0.015],
+      );
+    }
+
+    const spoiler = this.addMesh(
+      new RoundedBoxGeometry(0.32, 0.018, 0.055, 2, 0.007),
+      carbon,
+      [0, 0.23, -0.32],
+    );
+    spoiler.rotation.x = -0.08;
+    for (const x of [-0.11, 0.11]) {
+      this.addMesh(
+        new THREE.BoxGeometry(0.018, 0.09, 0.018),
+        metal,
+        [x, 0.185, -0.3],
+      );
+    }
+
     const headlamp = new THREE.SpotLight(
-      0xffe7ae,
-      4.5,
-      2.8,
-      0.48,
-      0.65,
-      1.2,
+      0xeaf7ff,
+      5.4,
+      3.4,
+      0.43,
+      0.7,
+      1.1,
     );
-    headlamp.position.set(0, 0.15, 0.26);
-    headlamp.target.position.set(0, 0.02, 1.7);
+    headlamp.position.set(0, 0.14, 0.29);
+    headlamp.target.position.set(0, 0.01, 2.2);
     headlamp.castShadow = false;
     this.visual.add(headlamp, headlamp.target);
-
-    const driverHead = this.addMesh(
-      new THREE.SphereGeometry(0.055, 10, 7),
-      new THREE.MeshStandardMaterial({
-        color: 0xf0bd91,
-        roughness: 0.9,
-        flatShading: true,
-      }),
-      [0, 0.415, -0.07],
-    );
-    driverHead.scale.y = 1.08;
-
-    const scarf = this.addMesh(
-      new THREE.BoxGeometry(0.035, 0.012, 0.18),
-      new THREE.MeshStandardMaterial({
-        color: 0xf4c547,
-        roughness: 0.9,
-      }),
-      [0.03, 0.38, -0.2],
-    );
-    scarf.rotation.y = -0.18;
   }
 
   private buildWheels() {
     const tireMaterial = new THREE.MeshStandardMaterial({
-      color: 0x202225,
-      roughness: 0.92,
+      color: 0x101214,
+      roughness: 0.86,
     });
-    const hubMaterial = new THREE.MeshStandardMaterial({
-      color: 0xe5d7b8,
-      roughness: 0.38,
-      metalness: 0.25,
+    const rimMaterial = new THREE.MeshStandardMaterial({
+      color: 0xb8c2c5,
+      roughness: 0.22,
+      metalness: 0.88,
     });
 
-    for (const z of [-0.2, 0.2]) {
-      for (const x of [-0.205, 0.205]) {
+    for (const z of [-0.215, 0.215]) {
+      for (const x of [-0.19, 0.19]) {
         const pivot = new THREE.Group();
-        pivot.position.set(x, 0.07, z);
+        pivot.position.set(x, 0.065, z);
         const wheel = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.071, 0.071, 0.055, 12),
+          new THREE.CylinderGeometry(0.068, 0.068, 0.047, 18),
           tireMaterial,
         );
         wheel.rotation.z = Math.PI / 2;
         wheel.castShadow = true;
-        pivot.add(wheel);
-
-        const hub = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.032, 0.032, 0.058, 10),
-          hubMaterial,
+        const rim = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.038, 0.038, 0.05, 10),
+          rimMaterial,
         );
-        hub.rotation.z = Math.PI / 2;
-        wheel.add(hub);
+        rim.rotation.z = Math.PI / 2;
+        wheel.add(rim);
+        pivot.add(wheel);
         this.visual.add(pivot);
         const assembly = { pivot, wheel };
         this.wheels.push(assembly);
@@ -216,22 +191,22 @@ export class CarMesh {
   }
 
   update(speed: number, steering: number, delta: number, drift: number) {
-    this.wheelRotation += speed * delta * 5.8;
+    this.wheelRotation += speed * delta * 6.4;
     for (const assembly of this.wheels) {
       assembly.wheel.rotation.x = this.wheelRotation;
     }
     for (const assembly of this.frontWheels) {
-      assembly.pivot.rotation.y = -steering * 0.45;
+      assembly.pivot.rotation.y = -steering * 0.42;
     }
     this.visual.rotation.z = THREE.MathUtils.lerp(
       this.visual.rotation.z,
-      -steering * Math.min(Math.abs(speed), 1) * 0.07,
-      1 - Math.exp(-delta * 8),
+      -steering * Math.min(Math.abs(speed), 1) * 0.045,
+      1 - Math.exp(-delta * 9),
     );
     this.visual.rotation.y = THREE.MathUtils.lerp(
       this.visual.rotation.y,
-      -drift * 0.16,
-      1 - Math.exp(-delta * 7),
+      -drift * 0.11,
+      1 - Math.exp(-delta * 8),
     );
   }
 
@@ -242,7 +217,7 @@ export class CarMesh {
       const materials = Array.isArray(object.material)
         ? object.material
         : [object.material];
-      for (const material of materials) material.dispose();
+      materials.forEach((material) => material.dispose());
     });
   }
 }

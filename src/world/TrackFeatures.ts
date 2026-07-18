@@ -57,16 +57,16 @@ export class TrackFeatures {
 
   private buildBoostPads() {
     const selections = [
-      this.road.samples[125],
-      this.road.samples[320],
-      this.road.samples[470],
-      this.road.highlandSamples[65],
-      this.road.highlandSamples[235],
-      this.road.connectorSamples[46],
+      this.road.samples[120],
+      this.road.samples[350],
+      this.road.samples[620],
+      this.road.samples[850],
+      this.road.samples[1100],
+      this.road.samples[1300],
     ];
     for (const sample of selections) {
       const group = new THREE.Group();
-      for (const x of [-0.075, -0.025, 0.025, 0.075]) {
+      for (const x of [-0.28, -0.2, -0.12, -0.04, 0.04, 0.12, 0.2, 0.28]) {
         const strip = new THREE.Mesh(
           new THREE.BoxGeometry(0.018, 0.012, 0.2),
           this.boostMaterial,
@@ -89,14 +89,14 @@ export class TrackFeatures {
     });
     const accentMaterial = new THREE.MeshBasicMaterial({ color: 0xffdb4d });
     const selections = [
-      this.road.samples[210],
-      this.road.highlandSamples[148],
-      this.road.highlandSamples[330],
+      this.road.samples[190],
+      this.road.samples[690],
+      this.road.samples[1210],
     ];
     selections.forEach((sample, index) => {
       const arch = new THREE.Group();
       const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(0.26, 0.026, 8, 32, Math.PI),
+        new THREE.TorusGeometry(0.48, 0.035, 8, 40, Math.PI),
         archMaterial,
       );
       ring.rotation.z = Math.PI;
@@ -107,7 +107,7 @@ export class TrackFeatures {
           new THREE.BoxGeometry(0.035, 0.28, 0.035),
           archMaterial,
         );
-        post.position.set(side * 0.26, -0.14, 0);
+        post.position.set(side * 0.48, -0.14, 0);
         arch.add(post);
       }
       const badge = new THREE.Mesh(
@@ -127,9 +127,9 @@ export class TrackFeatures {
 
   private buildRamps() {
     const selections = [
-      this.road.samples[268],
-      this.road.highlandSamples[188],
-      this.road.connectorSamples[72],
+      this.road.samples[280],
+      this.road.samples[760],
+      this.road.samples[1180],
     ];
     const material = new THREE.MeshStandardMaterial({
       color: 0xff6d35,
@@ -166,10 +166,10 @@ export class TrackFeatures {
 
   private buildBillboards() {
     const samples = [
-      this.road.samples[82],
-      this.road.samples[390],
-      this.road.highlandSamples[25],
-      this.road.highlandSamples[280],
+      this.road.samples[80],
+      this.road.samples[410],
+      this.road.samples[780],
+      this.road.samples[1150],
     ];
     const colors = [0xf6c943, 0x4bd3e9, 0xff7040, 0x9e78e7];
     samples.forEach((sample, index) => {
@@ -215,8 +215,8 @@ export class TrackFeatures {
 
   private buildSignalTowers() {
     const samples = [
-      this.road.highlandSamples[92],
-      this.road.highlandSamples[300],
+      this.road.samples[520],
+      this.road.samples[980],
     ];
     samples.forEach((sample, index) => {
       const tower = new THREE.Group();
@@ -262,7 +262,7 @@ export class TrackFeatures {
       pad.group.scale.y = 1 + Math.sin(elapsed * 8) * 0.08;
       if (
         pad.cooldown === 0 &&
-        angularDistance(carNormal, pad.normal) * PLANET_RADIUS < 0.17
+        angularDistance(carNormal, pad.normal) * PLANET_RADIUS < 0.38
       ) {
         pad.cooldown = 2.2;
         triggered = true;
@@ -273,7 +273,7 @@ export class TrackFeatures {
       ramp.cooldown = Math.max(0, ramp.cooldown - delta);
       if (
         ramp.cooldown === 0 &&
-        angularDistance(carNormal, ramp.normal) * PLANET_RADIUS < 0.15
+        angularDistance(carNormal, ramp.normal) * PLANET_RADIUS < 0.36
       ) {
         ramp.cooldown = 2.5;
         launched = true;

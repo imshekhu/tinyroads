@@ -59,7 +59,7 @@ export class Race {
         metalness: 0.12,
       });
       const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(0.22, 0.018, 7, 30),
+        new THREE.TorusGeometry(0.5, 0.03, 8, 40),
         material,
       );
       ring.castShadow = true;
@@ -70,13 +70,14 @@ export class Race {
           new THREE.BoxGeometry(0.028, 0.24, 0.028),
           material,
         );
-        post.position.set(side * 0.205, -0.11, 0);
+        post.scale.y = 2;
+        post.position.set(side * 0.49, -0.24, 0);
         post.castShadow = true;
         group.add(post);
       }
       group.position
         .copy(sample.position)
-        .addScaledVector(sample.normal, 0.215);
+        .addScaledVector(sample.normal, 0.49);
       group.quaternion.copy(
         orientationFromFrame(sample.normal, sample.tangent),
       );
@@ -99,7 +100,7 @@ export class Race {
 
     const target = this.gates[this.nextGate];
     const distance = angularDistance(carNormal, target.normal) * PLANET_RADIUS;
-    const nowInside = distance < 0.19;
+    const nowInside = distance < 0.46;
 
     if (nowInside && !this.insideGate) {
       this.handleGate();
@@ -155,6 +156,15 @@ export class Race {
           : 0,
       total: this.gateCount,
     };
+  }
+
+  reset() {
+    this.status = "waiting";
+    this.time = 0;
+    this.nextGate = 0;
+    this.passedFinalSector = false;
+    this.insideGate = false;
+    this.updateGateAppearance();
   }
 
   dispose() {

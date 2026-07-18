@@ -42,17 +42,9 @@ export class Collectibles {
     });
 
     for (let index = 0; index < this.total; index += 1) {
-      const route =
-        index < 16
-          ? planet.road.samples
-          : index < 22
-            ? planet.road.highlandSamples
-            : planet.road.connectorSamples;
-      const routeIndex =
-        index < 16 ? index : index < 22 ? index - 16 : index - 22;
-      const routeCount = index < 16 ? 16 : index < 22 ? 6 : 2;
+      const route = planet.road.samples;
       const sampleIndex =
-        (18 + routeIndex * Math.floor(route.length / routeCount)) % route.length;
+        (35 + index * Math.floor(route.length / this.total)) % route.length;
       const sample = route[sampleIndex];
       const item = new THREE.Group();
       const core = new THREE.Mesh(coreGeometry, coreMaterial);
@@ -88,7 +80,7 @@ export class Collectibles {
         .addScaledVector(item.normal, Math.sin(elapsed * 2.4 + item.phase) * 0.025);
 
       const distance = angularDistance(carNormal, item.normal) * PLANET_RADIUS;
-      if (distance < 0.16) {
+      if (distance < 0.34) {
         item.collected = true;
         item.group.visible = false;
         this.collected += 1;

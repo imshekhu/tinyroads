@@ -3,6 +3,7 @@ import type {
   NetworkDriveInput,
   NetworkPlayerState,
 } from "../shared/protocol";
+import { PLANET_RADIUS } from "../src/config";
 
 export type ServerPlayer = {
   state: NetworkPlayerState;
@@ -90,7 +91,7 @@ export function simulatePlayer(player: ServerPlayer, delta: number) {
     const axis = new THREE.Vector3().crossVectors(normal, forward).normalize();
     const movement = new THREE.Quaternion().setFromAxisAngle(
       axis,
-      (speed * delta) / 6,
+      (speed * delta) / PLANET_RADIUS,
     );
     normal.applyQuaternion(movement).normalize();
     forward

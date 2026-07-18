@@ -22,6 +22,7 @@ export type CarTelemetry = {
   route: "coast" | "highland" | "connector";
   airborne: boolean;
   airtime: number;
+  boundaryHit: boolean;
 };
 
 export class Car {
@@ -200,6 +201,24 @@ export class Car {
         .normalize();
     }
 
+    const boundary = this.planet.road.clampToTrack(this.normal);
+    if (boundary.constrained) {
+      this.normal.copy(boundary.normal);
+      const trackDirection = boundary.info.tangent
+        .clone()
+        .multiplyScalar(this.forward.dot(boundary.info.tangent) >= 0 ? 1 : -1);
+      this.forward
+        .lerp(trackDirection, 0.18)
+        .addScaledVector(this.normal, -this.forward.dot(this.normal))
+        .normalize();
+      this.velocityDirection
+        .lerp(this.forward, 0.32)
+        .addScaledVector(this.normal, -this.velocityDirection.dot(this.normal))
+        .normalize();
+      this.speed *= 0.86;
+      this.onRoad = true;
+    }
+
     if (this.airborneOffset > 0 || this.verticalVelocity > 0) {
       this.verticalVelocity -= 1.42 * delta;
       this.airborneOffset += this.verticalVelocity * delta;
@@ -242,6 +261,7 @@ export class Car {
       route: roadInfo.route,
       airborne: this.airborneOffset > 0,
       airtime: this.airtime,
+      boundaryHit: boundary.constrained,
     };
   }
 

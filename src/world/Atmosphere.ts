@@ -16,7 +16,6 @@ export class Atmosphere {
   private readonly scene: THREE.Scene;
   private readonly stars: THREE.Points;
   private readonly starMaterial: THREE.ShaderMaterial;
-  private readonly clouds: THREE.InstancedMesh;
   private readonly sunMesh: THREE.Mesh;
   private readonly skyDome: THREE.Mesh;
   private readonly skyMaterial: THREE.ShaderMaterial;
@@ -53,7 +52,6 @@ export class Atmosphere {
     this.skyDome = this.buildSkyDome();
     this.starMaterial = this.createStarMaterial();
     this.stars = this.buildStars(seed);
-    this.clouds = this.buildClouds(seed + 1);
     this.shootingStarMaterial = new THREE.LineBasicMaterial({
       color: 0xc6e9ff,
       transparent: true,
@@ -72,7 +70,6 @@ export class Atmosphere {
       this.stars,
       this.shootingStars,
       this.celestialGroup,
-      this.clouds,
       this.buildGlowShell(),
     );
 
@@ -119,7 +116,7 @@ export class Atmosphere {
 
   private buildSkyDome() {
     const mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(65, 48, 32),
+      new THREE.SphereGeometry(140, 48, 32),
       this.skyMaterial,
     );
     mesh.renderOrder = -100;
@@ -199,7 +196,7 @@ export class Atmosphere {
     const phases: number[] = [];
     const color = new THREE.Color();
     for (let index = 0; index < 1800; index += 1) {
-      const radius = random.range(31, 52);
+      const radius = random.range(72, 118);
       const y = random.range(-1, 1);
       const theta = random.range(0, Math.PI * 2);
       const radial = Math.sqrt(1 - y * y);
@@ -219,47 +216,6 @@ export class Atmosphere {
     return new THREE.Points(geometry, this.starMaterial);
   }
 
-  private buildClouds(seed: number) {
-    const random = new SeededRandom(seed);
-    const count = 92;
-    const clouds = new THREE.InstancedMesh(
-      new THREE.IcosahedronGeometry(0.18, 1),
-      new THREE.MeshBasicMaterial({
-        color: 0xfff8e7,
-        transparent: true,
-        opacity: 0.72,
-        depthWrite: false,
-      }),
-      count,
-    );
-    const matrix = new THREE.Matrix4();
-    const quaternion = new THREE.Quaternion();
-    const scale = new THREE.Vector3();
-    const position = new THREE.Vector3();
-    const up = new THREE.Vector3(0, 1, 0);
-    for (let index = 0; index < count; index += 1) {
-      const y = random.range(-0.84, 0.84);
-      const theta = random.range(0, Math.PI * 2);
-      const radial = Math.sqrt(1 - y * y);
-      const radius = random.range(6.7, 7.25);
-      position.set(
-        Math.cos(theta) * radial * radius,
-        y * radius,
-        Math.sin(theta) * radial * radius,
-      );
-      quaternion.setFromUnitVectors(up, position.clone().normalize());
-      scale.set(
-        random.range(1.2, 2.9),
-        random.range(0.48, 0.84),
-        random.range(0.9, 1.8),
-      );
-      matrix.compose(position, quaternion, scale);
-      clouds.setMatrixAt(index, matrix);
-    }
-    clouds.instanceMatrix.needsUpdate = true;
-    return clouds;
-  }
-
   private buildShootingStars(seed: number) {
     const random = new SeededRandom(seed);
     const points: number[] = [];
@@ -268,7 +224,7 @@ export class Atmosphere {
         random.range(-28, 28),
         random.range(8, 28),
         random.range(-28, 28),
-      ).normalize().multiplyScalar(random.range(34, 46));
+      ).normalize().multiplyScalar(random.range(78, 112));
       const direction = new THREE.Vector3(
         random.range(-1, 1),
         random.range(-0.35, 0.35),
@@ -289,10 +245,10 @@ export class Atmosphere {
       opacity: 0,
     });
     const moon = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(1.15, 3),
+      new THREE.IcosahedronGeometry(3.4, 3),
       moonMaterial,
     );
-    moon.position.set(-18, 13, -23);
+    moon.position.set(-62, 48, -72);
     this.celestialMaterials.push(moonMaterial);
 
     const planetMaterial = new THREE.MeshBasicMaterial({
@@ -307,16 +263,16 @@ export class Atmosphere {
       side: THREE.DoubleSide,
     });
     const planet = new THREE.Mesh(
-      new THREE.SphereGeometry(0.8, 24, 16),
+      new THREE.SphereGeometry(2.4, 24, 16),
       planetMaterial,
     );
     const rings = new THREE.Mesh(
-      new THREE.RingGeometry(1.05, 1.42, 36),
+      new THREE.RingGeometry(3.1, 4.2, 36),
       ringMaterial,
     );
     rings.rotation.x = 1.25;
     planet.add(rings);
-    planet.position.set(24, -3, -27);
+    planet.position.set(76, -12, -80);
     this.celestialMaterials.push(planetMaterial, ringMaterial);
     this.celestialGroup.add(moon, planet);
   }
@@ -335,7 +291,7 @@ export class Atmosphere {
     this.scene.background = this.workingColor;
     if (this.scene.fog instanceof THREE.FogExp2) {
       this.scene.fog.color.copy(this.workingColor);
-      this.scene.fog.density = 0.01 + (1 - daylight) * 0.007;
+      this.scene.fog.density = 0.0017 + (1 - daylight) * 0.0012;
     }
 
     const top = this.skyMaterial.uniforms.topColor.value as THREE.Color;
@@ -355,7 +311,9 @@ export class Atmosphere {
       Math.sin(angle * 0.43) * 5,
     );
     this.sunLight.position.copy(sunPosition);
-    this.sunMesh.position.copy(sunPosition.clone().normalize().multiplyScalar(22));
+    this.sunMesh.position.copy(
+      sunPosition.clone().normalize().multiplyScalar(105),
+    );
     this.sunLight.intensity = 0.18 + daylight * 3.1;
     this.ambientLight.intensity = 0.42 + daylight * 1.35;
     this.ambientLight.color
@@ -377,9 +335,6 @@ export class Atmosphere {
     });
     this.shootingStarMaterial.opacity =
       nightVisibility * Math.max(0, Math.sin(elapsed * 0.34)) * 0.78;
-    const cloudMaterial = this.clouds.material as THREE.MeshBasicMaterial;
-    cloudMaterial.opacity = 0.08 + daylight * 0.72;
-    this.clouds.rotation.y = elapsed * 0.003;
     this.stars.rotation.y = elapsed * 0.0015;
     this.shootingStars.rotation.y = elapsed * 0.006;
     this.celestialGroup.rotation.y = elapsed * 0.001;

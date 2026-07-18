@@ -1,8 +1,8 @@
-export const PLANET_RADIUS = 6;
+export const PLANET_RADIUS = 26;
 export const OCEAN_LEVEL = 0.015;
-export const ROAD_WIDTH = 0.28;
-export const ROAD_SAMPLE_COUNT = 560;
-export const CAR_CLEARANCE = 0.085;
+export const ROAD_WIDTH = 0.74;
+export const ROAD_SAMPLE_COUNT = 1400;
+export const CAR_CLEARANCE = 0.055;
 
 export const COLORS = {
   skyDay: 0x8ad7ff,

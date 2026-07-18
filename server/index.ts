@@ -52,6 +52,7 @@ export function createGameServer() {
   const memberships = new Map<string, ReturnType<RoomManager["findOrCreate"]>>();
   io.on("connection", (socket) => {
     socket.on("room:join", (rawRequest, acknowledge) => {
+      if (typeof acknowledge !== "function") return;
       const parsed = JoinRequestSchema.safeParse(rawRequest);
       if (!parsed.success) {
         const mismatch =

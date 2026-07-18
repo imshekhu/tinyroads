@@ -4,7 +4,6 @@ import { ChaseCamera } from "../camera/ChaseCamera";
 import { CAR_PALETTE, OCEAN_LEVEL } from "../config";
 import { Collectibles } from "../gameplay/Collectibles";
 import { Race, type RaceSnapshot } from "../gameplay/Race";
-import { Traffic } from "../gameplay/Traffic";
 import { Controls } from "../input/Controls";
 import {
   ModeManager,
@@ -21,7 +20,7 @@ import { TrackFeatures } from "../world/TrackFeatures";
 export class Game {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(58, 1, 0.01, 120);
+  private readonly camera = new THREE.PerspectiveCamera(58, 1, 0.01, 280);
   private readonly clock = new THREE.Clock();
   private readonly planet: Planet;
   private readonly atmosphere: Atmosphere;
@@ -30,7 +29,6 @@ export class Game {
   private readonly chaseCamera: ChaseCamera;
   private readonly collectibles: Collectibles;
   private readonly race: Race;
-  private readonly traffic: Traffic;
   private readonly trackFeatures: TrackFeatures;
   private readonly modeManager = new ModeManager();
   private readonly remoteCars: RemoteCars;
@@ -41,6 +39,7 @@ export class Game {
 
   private running = true;
   private started = false;
+  private paused = false;
   private elapsed =
     new URLSearchParams(window.location.search).get("sky") === "night"
       ? 122
@@ -73,7 +72,6 @@ export class Game {
     this.planet = new Planet();
     this.atmosphere = new Atmosphere(this.scene);
     this.trackFeatures = new TrackFeatures(this.planet.road);
-    this.traffic = new Traffic(this.planet.road);
     this.car = new Car(this.planet, this.selectedColor);
     this.remoteCars = new RemoteCars(this.planet);
     this.race = new Race(this.planet, (type, snapshot) =>
@@ -91,7 +89,6 @@ export class Game {
       this.planet.group,
       this.atmosphere.group,
       this.trackFeatures.group,
-      this.traffic.group,
       this.remoteCars.group,
       this.car.mesh.group,
       this.car.smoke.group,
@@ -115,6 +112,8 @@ export class Game {
       if (this.started) return;
       this.started = true;
       this.audio.start();
+      this.audio.setPaused(false);
+      this.controls.setEnabled(true);
       this.chaseCamera.snap();
       this.hud.enterGame();
       const mode = this.modeManager.current;
@@ -172,7 +171,33 @@ export class Game {
     };
     muteButton.addEventListener("click", toggleMute);
 
+    const pauseButton =
+      document.querySelector<HTMLButtonElement>("#pause-button")!;
+    const resumeButton =
+      document.querySelector<HTMLButtonElement>("#resume-button")!;
+    const exitButton =
+      document.querySelector<HTMLButtonElement>("#exit-button")!;
+    const pauseExitButton =
+      document.querySelector<HTMLButtonElement>("#pause-exit-button")!;
+    const homeLink = document.querySelector<HTMLAnchorElement>(".mini-logo")!;
+    const togglePause = () => this.setPaused(!this.paused);
+    const exitToMenu = () => this.exitToMenu();
+    const home = (event: Event) => {
+      event.preventDefault();
+      exitToMenu();
+    };
+    pauseButton.addEventListener("click", togglePause);
+    resumeButton.addEventListener("click", togglePause);
+    exitButton.addEventListener("click", exitToMenu);
+    pauseExitButton.addEventListener("click", exitToMenu);
+    homeLink.addEventListener("click", home);
+
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code === "Escape" && this.started) {
+        event.preventDefault();
+        togglePause();
+        return;
+      }
       if (event.code === "KeyR" && this.started) {
         this.car.reset(this.planet.road.getRoadInfo(this.car.normal).index);
         this.chaseCamera.snap();
@@ -187,6 +212,11 @@ export class Game {
       () => helpButton.removeEventListener("click", showHelp),
       () => closeHelp.removeEventListener("click", hideHelp),
       () => muteButton.removeEventListener("click", toggleMute),
+      () => pauseButton.removeEventListener("click", togglePause),
+      () => resumeButton.removeEventListener("click", togglePause),
+      () => exitButton.removeEventListener("click", exitToMenu),
+      () => pauseExitButton.removeEventListener("click", exitToMenu),
+      () => homeLink.removeEventListener("click", home),
       () => window.removeEventListener("keydown", onKeyDown),
       () => window.removeEventListener("resize", this.resize),
       () =>
@@ -195,6 +225,31 @@ export class Game {
           this.onVisibilityChange,
         ),
     );
+  }
+
+  private setPaused(paused: boolean) {
+    if (!this.started) return;
+    this.paused = paused;
+    this.controls.setEnabled(!paused);
+    this.audio.setPaused(paused);
+    this.hud.setPaused(paused);
+  }
+
+  private exitToMenu() {
+    if (!this.started) return;
+    this.paused = false;
+    this.started = false;
+    this.controls.setEnabled(false);
+    this.audio.setPaused(true);
+    this.multiplayer?.disconnect();
+    this.remoteCars.dispose();
+    this.car.reset();
+    this.race.reset();
+    this.driftChain = 0;
+    this.airChain = 0;
+    this.driftGrace = 0;
+    this.wasAirborne = false;
+    this.hud.exitGame();
   }
 
   private applyMode(mode: GameMode) {
@@ -324,10 +379,10 @@ export class Game {
 
   private updatePreview(delta: number) {
     const orbit = this.elapsed * 0.055;
-    const radius = 12.4;
+    const radius = 54;
     this.camera.position.set(
       Math.cos(orbit) * radius,
-      5.1 + Math.sin(orbit * 0.6) * 1.1,
+      20 + Math.sin(orbit * 0.6) * 3.5,
       Math.sin(orbit) * radius,
     );
     this.camera.up.set(0, 1, 0);
@@ -383,10 +438,13 @@ export class Game {
     // Preserve arcade pace on lower-end devices while bounding unstable steps.
     const delta = Math.min(this.clock.getDelta(), 0.1);
     if (delta <= 0) return;
+    if (this.started && this.paused) {
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
     this.elapsed += delta;
     const sky = this.atmosphere.update(this.elapsed);
     this.planet.update(this.elapsed);
-    this.traffic.update(delta, this.elapsed);
     this.remoteCars.update(delta);
 
     if (!this.started) {
@@ -420,7 +478,9 @@ export class Game {
       }
       this.chaseCamera.update(delta, telemetry);
       this.collectibles.update(this.elapsed, this.car.normal);
-      const race = this.race.update(delta, this.elapsed, this.car.normal);
+      const race = this.modeManager.current.raceEnabled
+        ? this.race.update(delta, this.elapsed, this.car.normal)
+        : this.race.snapshot();
       this.hud.update(
         telemetry,
         race,
@@ -462,7 +522,6 @@ export class Game {
     this.car.dispose();
     this.collectibles.dispose();
     this.race.dispose();
-    this.traffic.dispose();
     this.trackFeatures.dispose();
     this.remoteCars.dispose();
     this.planet.dispose();

@@ -8,7 +8,6 @@ import {
 import { orientationFromFrame, tangentNorth } from "../math/SphericalMath";
 import { fbm3D, SeededRandom } from "./Noise";
 import {
-  highlandRouteLatitude,
   mainRouteLatitude,
   RoadNetwork,
 } from "./RoadNetwork";
@@ -41,24 +40,7 @@ export class Planet {
     const n = normal;
     const theta = Math.atan2(n.z, n.x);
     const mainY = Math.sin(mainRouteLatitude(theta));
-    const highlandY = Math.sin(highlandRouteLatitude(theta));
-    const loopDistance = Math.min(
-      Math.abs(n.y - mainY),
-      Math.abs(n.y - highlandY),
-    );
-    const connectorTheta = 0.72;
-    const thetaDistance = Math.abs(
-      Math.atan2(
-        Math.sin(theta - connectorTheta),
-        Math.cos(theta - connectorTheta),
-      ),
-    );
-    const lowY = Math.min(mainY, highlandY);
-    const highY = Math.max(mainY, highlandY);
-    const yOutside =
-      n.y < lowY ? lowY - n.y : n.y > highY ? n.y - highY : 0;
-    const connectorDistance = Math.max(thetaDistance * 0.65, yOutside);
-    const routeDistance = Math.min(loopDistance, connectorDistance);
+    const routeDistance = Math.abs(n.y - mainY);
     const roadContinent = Math.max(0, 1 - routeDistance / 0.22) * 0.29;
     const broad = fbm3D(n.x * 1.65, n.y * 1.65, n.z * 1.65, this.seed, 4);
     const detail = fbm3D(n.x * 5.2, n.y * 5.2, n.z * 5.2, this.seed + 91, 3);
@@ -203,7 +185,7 @@ export class Planet {
 
   private buildTrees() {
     const random = new SeededRandom(this.seed + 100);
-    const count = 520;
+    const count = 1200;
     const trunk = new THREE.InstancedMesh(
       new THREE.CylinderGeometry(0.018, 0.025, 0.14, 5),
       new THREE.MeshStandardMaterial({
@@ -254,7 +236,7 @@ export class Planet {
 
   private buildRocks() {
     const random = new SeededRandom(this.seed + 220);
-    const count = 95;
+    const count = 180;
     const rocks = new THREE.InstancedMesh(
       new THREE.DodecahedronGeometry(0.085, 0),
       new THREE.MeshStandardMaterial({
@@ -299,7 +281,9 @@ export class Planet {
     });
 
     for (let village = 0; village < 7; village += 1) {
-      const routeIndex = (30 + village * 79) % this.road.samples.length;
+      const routeIndex =
+        (45 + village * Math.floor(this.road.samples.length / 7)) %
+        this.road.samples.length;
       const route = this.road.samples[routeIndex];
       const side = new THREE.Vector3()
         .crossVectors(route.normal, route.tangent)

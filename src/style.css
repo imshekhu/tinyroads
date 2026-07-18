@@ -985,6 +985,71 @@ kbd {
   line-height: 1.6;
 }
 
+.pause-overlay {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(14, 19, 22, 0.72);
+  opacity: 0;
+  backdrop-filter: blur(12px);
+  transition: opacity 180ms ease;
+}
+
+.pause-overlay[hidden] {
+  display: none;
+}
+
+.pause-overlay.is-visible {
+  opacity: 1;
+}
+
+.pause-overlay > div {
+  width: min(420px, calc(100% - 30px));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 38px;
+  background: rgba(28, 34, 38, 0.96);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.38);
+  text-align: center;
+}
+
+.pause-overlay .kicker {
+  justify-content: center;
+}
+
+.pause-overlay h2 {
+  margin: 14px 0 10px;
+  font-size: 42px;
+  letter-spacing: -0.055em;
+}
+
+.pause-overlay p:not(.kicker) {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 12px;
+}
+
+.pause-overlay .drive-button {
+  width: 100%;
+  margin-top: 27px;
+  justify-content: center;
+}
+
+.pause-exit-button {
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  padding: 14px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
 /* Touch */
 .touch-controls {
   display: none;
@@ -1079,6 +1144,15 @@ kbd {
     padding: 0 12px;
   }
 
+  .header-actions {
+    gap: 4px;
+  }
+
+  .header-actions button {
+    width: 32px;
+    height: 32px;
+  }
+
   .objective-card {
     top: 66px;
     left: 12px;
@@ -1159,14 +1233,14 @@ kbd {
   .touch-steering,
   .touch-pedals {
     display: flex;
-    gap: 9px;
+    gap: 4px;
     pointer-events: auto;
   }
 
   .touch-controls button {
     display: grid;
-    width: 58px;
-    height: 58px;
+    width: 48px;
+    height: 48px;
     place-items: center;
     border: 1px solid rgba(255, 255, 255, 0.32);
     border-radius: 50%;
@@ -1192,12 +1266,20 @@ kbd {
   }
 
   .touch-pedals button[data-control="handbrake"] {
-    width: 50px;
-    height: 50px;
+    width: 42px;
+    height: 42px;
     align-self: flex-end;
   }
 
-  .touch-pedals button[data-control="handbrake"] span {
+  .touch-pedals button[data-control="boost"] {
+    width: 42px;
+    height: 42px;
+    align-self: flex-end;
+    border-color: rgba(247, 201, 71, 0.7);
+  }
+
+  .touch-pedals button[data-control="handbrake"] span,
+  .touch-pedals button[data-control="boost"] span {
     font-size: 7px;
     font-weight: 850;
     letter-spacing: 0.08em;
@@ -1222,10 +1304,6 @@ kbd {
   .paint-swatch {
     width: 25px;
     height: 25px;
-  }
-
-  .header-actions button:first-child {
-    display: none;
   }
 
   .race-card {

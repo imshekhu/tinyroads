@@ -27,16 +27,16 @@ Touch controls and standard gamepads are supported.
 - Socket.io multiplayer rooms with server-ticked car inputs and snapshots
 - Client prediction, lightweight reconciliation, reconnect, and remote cars
 - Quaternion-based driving around a complete spherical planet
-- Deterministic terrain, ocean, villages, forests, and a three-route track network
-- Original low-poly procedural car with selectable paint
-- Coast circuit, highland loop, and coloured connector shortcut
-- Track arches, guard rails, boost strips, billboards, signal towers, and AI traffic
-- Arcade grip, off-road drag, handbrake drifting, boost, and drift scoring
+- Large deterministic planet with an approximately 80-second circuit
+- One wide four-lane track with continuous containment barriers
+- Small modern procedural sports car with selectable paint
+- Track arches, boost strips, ramps, billboards, and signal towers
+- Boundary-safe grip, handbrake drifting, boost, airtime, and scoring
 - Smooth radial chase camera with speed-sensitive FOV and shake
-- Twenty-four collectible golden bolts spread across every route
+- Twenty-four collectible golden bolts distributed around the circuit
 - Eight-checkpoint timed island race with persistent personal best
-- Gradient day, sunset, and night skies with twinkling stars, shooting stars,
-  celestial bodies, atmosphere, and moving clouds
+- Clean daytime sky and night skies with twinkling stars, shooting stars,
+  celestial bodies, and atmosphere
 - Procedural Web Audio engine and event sounds—no bundled audio assets
 - Responsive desktop, touch, and gamepad controls
 - Reduced-motion and keyboard-accessible UI

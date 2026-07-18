@@ -5,6 +5,7 @@ export class AudioEngine {
   private engineLow: OscillatorNode | null = null;
   private engineHigh: OscillatorNode | null = null;
   private muted = false;
+  private paused = false;
 
   start() {
     if (this.context) {
@@ -103,12 +104,23 @@ export class AudioEngine {
     this.muted = !this.muted;
     if (this.context && this.master) {
       this.master.gain.setTargetAtTime(
-        this.muted ? 0 : 0.58,
+        this.muted || this.paused ? 0 : 0.58,
         this.context.currentTime,
         0.04,
       );
     }
     return this.muted;
+  }
+
+  setPaused(paused: boolean) {
+    this.paused = paused;
+    if (this.context && this.master) {
+      this.master.gain.setTargetAtTime(
+        this.muted || paused ? 0 : 0.58,
+        this.context.currentTime,
+        0.05,
+      );
+    }
   }
 
   dispose() {

@@ -11,9 +11,11 @@ type Action = "left" | "right" | "throttle" | "brake" | "handbrake" | "boost";
 export class Controls {
   private readonly pressed = new Set<Action>();
   private readonly cleanups: Array<() => void> = [];
+  private enabled = false;
 
   constructor() {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (!this.enabled || this.isEditableTarget(event.target)) return;
       const action = this.actionForKey(event.code);
       if (!action) return;
       this.pressed.add(action);
@@ -39,6 +41,7 @@ export class Controls {
     document.querySelectorAll<HTMLElement>("[data-control]").forEach((element) => {
       const action = element.dataset.control as Action;
       const press = (event: PointerEvent) => {
+        if (!this.enabled) return;
         event.preventDefault();
         element.setPointerCapture(event.pointerId);
         this.pressed.add(action);
@@ -85,7 +88,33 @@ export class Controls {
     }
   }
 
+  private isEditableTarget(target: EventTarget | null) {
+    return (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement ||
+      (target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.tagName === "BUTTON" ||
+          target.tagName === "A"))
+    );
+  }
+
+  setEnabled(enabled: boolean) {
+    this.enabled = enabled;
+    if (!enabled) this.pressed.clear();
+  }
+
   getInput(): DriveInput {
+    if (!this.enabled) {
+      return {
+        throttle: 0,
+        brake: 0,
+        steering: 0,
+        handbrake: false,
+        boost: false,
+      };
+    }
     const gamepad = navigator.getGamepads?.()[0];
     const gamepadSteering =
       gamepad && Math.abs(gamepad.axes[0] ?? 0) > 0.12

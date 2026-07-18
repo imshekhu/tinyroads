@@ -27,7 +27,7 @@ export function mountInterface(root: HTMLElement) {
         <p class="kicker">A tiny driving adventure</p>
         <h1 id="game-title"><span>Tiny</span> Roads</h1>
         <p class="start-copy">
-          Race coast roads, climb the highland loop, hit boost strips,
+          Master one enormous four-lane circuit, hit boost strips,
           and build the cleanest drift chain on the planet.
         </p>
         <div class="mode-picker" role="group" aria-label="Choose game mode">
@@ -88,7 +88,7 @@ export function mountInterface(root: HTMLElement) {
       </p>
     </section>
 
-    <div class="game-ui" id="game-ui" aria-hidden="true">
+    <div class="game-ui" id="game-ui" aria-hidden="true" inert>
       <header class="game-header">
         <a class="mini-logo" href="#" aria-label="Tiny Roads home">
           <span>TR</span>
@@ -103,11 +103,17 @@ export function mountInterface(root: HTMLElement) {
           <span id="network-status">Solo</span>
         </div>
         <div class="header-actions">
+          <button id="pause-button" type="button" aria-label="Pause game">
+            <span>Ⅱ</span>
+          </button>
           <button id="mute-button" type="button" aria-label="Mute sound">
             <svg viewBox="0 0 24 24"><path d="M5 9v6h4l5 4V5L9 9H5Zm12-1c1.5 1.8 1.5 6.2 0 8"/></svg>
           </button>
           <button id="help-button" type="button" aria-label="Show controls">
             <span>?</span>
+          </button>
+          <button id="exit-button" type="button" aria-label="Exit to mode selection">
+            <span>↙</span>
           </button>
         </div>
       </header>
@@ -163,6 +169,9 @@ export function mountInterface(root: HTMLElement) {
           <button type="button" data-control="right" aria-label="Steer right">›</button>
         </div>
         <div class="touch-pedals">
+          <button type="button" data-control="boost" aria-label="Boost">
+            <span>BOOST</span>
+          </button>
           <button type="button" data-control="handbrake" aria-label="Drift">
             <span>DRIFT</span>
           </button>
@@ -171,6 +180,16 @@ export function mountInterface(root: HTMLElement) {
         </div>
       </div>
     </div>
+
+    <section class="pause-overlay" id="pause-overlay" aria-labelledby="pause-title" hidden>
+      <div>
+        <p class="kicker">Pit stop</p>
+        <h2 id="pause-title">Game paused</h2>
+        <p>Your position is safe. Resume when you are ready.</p>
+        <button id="resume-button" class="drive-button" type="button">Resume driving</button>
+        <button id="pause-exit-button" class="pause-exit-button" type="button">Exit to mode selection</button>
+      </div>
+    </section>
 
     <dialog class="help-dialog" id="help-dialog">
       <button class="dialog-close" id="close-help" type="button" aria-label="Close">×</button>
@@ -236,6 +255,8 @@ export class HUD {
   private readonly styleScore =
     document.querySelector<HTMLElement>("#style-score")!;
   private readonly toast = document.querySelector<HTMLElement>("#toast")!;
+  private readonly pauseOverlay =
+    document.querySelector<HTMLElement>("#pause-overlay")!;
   private readonly networkStatus =
     document.querySelector<HTMLElement>("#network-status")!;
   private toastTimer: number | null = null;
@@ -252,6 +273,21 @@ export class HUD {
     this.startScreen.classList.add("is-hidden");
     this.ui.classList.add("is-visible");
     this.ui.setAttribute("aria-hidden", "false");
+    this.ui.inert = false;
+  }
+
+  exitGame() {
+    this.setPaused(false);
+    this.startScreen.classList.remove("is-hidden");
+    this.ui.classList.remove("is-visible");
+    this.ui.setAttribute("aria-hidden", "true");
+    this.ui.inert = true;
+  }
+
+  setPaused(paused: boolean) {
+    this.pauseOverlay.hidden = !paused;
+    this.pauseOverlay.classList.toggle("is-visible", paused);
+    this.ui.inert = paused;
   }
 
   setMode(mode: GameMode) {

@@ -107,4 +107,23 @@ describe("multiplayer room server", () => {
     });
     expect(result).toEqual({ ok: false, reason: "protocol-mismatch" });
   });
+
+  it("ignores malformed joins without acknowledgement callbacks", async () => {
+    const server = createGameServer();
+    servers.push(server);
+    const port = await server.listen(0);
+    const client = await connectClient(port);
+    (client as unknown as { emit: (event: string, payload: unknown) => void }).emit(
+      "room:join",
+      {
+        protocol: PROTOCOL_VERSION,
+        name: "No Ack",
+        color: 0,
+        mode: "race",
+      },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const health = await fetch(`http://localhost:${port}/health`);
+    expect(health.ok).toBe(true);
+  });
 });
