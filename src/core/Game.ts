@@ -116,6 +116,8 @@ export class Game {
       this.controls.setEnabled(true);
       this.chaseCamera.snap();
       this.hud.enterGame();
+      this.renderer.domElement.tabIndex = -1;
+      this.renderer.domElement.focus({ preventScroll: true });
       const mode = this.modeManager.current;
       this.hud.showToast("◆", mode.name, mode.objective);
       if (mode.multiplayer) void this.connectMultiplayer();
@@ -233,6 +235,9 @@ export class Game {
     this.controls.setEnabled(!paused);
     this.audio.setPaused(paused);
     this.hud.setPaused(paused);
+    if (!paused) {
+      this.renderer.domElement.focus({ preventScroll: true });
+    }
   }
 
   private exitToMenu() {
