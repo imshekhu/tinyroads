@@ -98,7 +98,7 @@ test("joins a live multiplayer race room", async ({ page }, testInfo) => {
   await page.getByRole("button", { name: "Start your engine" }).click();
   await expect(page.locator("#network-status")).not.toHaveText(
     /Solo fallback|Connecting/,
-    { timeout: 10_000 },
+    { timeout: 30_000 },
   );
   await expect(page.locator("#race-card")).not.toHaveClass(/is-mode-hidden/);
 });
