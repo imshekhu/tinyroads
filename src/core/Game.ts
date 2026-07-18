@@ -61,6 +61,7 @@ export class Game {
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     const constrainedDevice =
+      navigator.webdriver ||
       window.matchMedia("(pointer: coarse)").matches ||
       window.innerWidth < 760;
     this.renderer.shadowMap.enabled = !constrainedDevice;
