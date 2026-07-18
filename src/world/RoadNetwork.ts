@@ -217,9 +217,16 @@ export class RoadNetwork {
   }
 
   getRoadInfo(normal: THREE.Vector3): RoadInfo {
-    let bestIndex = 0;
+    let theta = Math.atan2(normal.z, normal.x);
+    if (theta < 0) theta += Math.PI * 2;
+    const estimatedIndex = Math.round(
+      (theta / (Math.PI * 2)) * this.samples.length,
+    );
+    let bestIndex = estimatedIndex % this.samples.length;
     let bestDot = -Infinity;
-    for (let index = 0; index < this.samples.length; index += 1) {
+    for (let offset = -5; offset <= 5; offset += 1) {
+      const index =
+        (estimatedIndex + offset + this.samples.length) % this.samples.length;
       const dot = normal.dot(this.samples[index].normal);
       if (dot > bestDot) {
         bestDot = dot;
