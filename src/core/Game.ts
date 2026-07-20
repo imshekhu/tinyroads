@@ -98,6 +98,7 @@ export class Game {
       this.remoteCars.group,
       this.car.mesh.group,
       this.car.smoke.group,
+      this.car.skids.group,
       this.collectibles.group,
       this.race.group,
     );

@@ -13,6 +13,7 @@ import {
 } from "../gameplay/Powers";
 import type { Planet } from "../world/Planet";
 import { CarMesh } from "./CarMesh";
+import { DriftSkids } from "./DriftSkids";
 import { DriftSmoke } from "./DriftSmoke";
 
 export type CarTelemetry = {
@@ -32,9 +33,11 @@ export type CarTelemetry = {
 export class Car {
   readonly mesh: CarMesh;
   readonly smoke = new DriftSmoke();
+  readonly skids = new DriftSkids();
   readonly normal = new THREE.Vector3();
   readonly forward = new THREE.Vector3();
   readonly velocityDirection = new THREE.Vector3();
+  private readonly right = new THREE.Vector3();
 
   speed = 0;
   boost = 1;
@@ -259,19 +262,36 @@ export class Car {
     this.mesh.update(this.speed, input.steering, delta, this.driftAmount);
 
     const position = this.mesh.group.position;
+    this.right
+      .crossVectors(this.normal, this.velocityDirection)
+      .normalize();
+    const driftIntensity =
+      this.airborneOffset > 0
+        ? 0
+        : Math.min(
+            1,
+            Math.abs(this.driftAmount) * 2.8 +
+              (input.handbrake && speedRatio > 0.25 ? 0.35 : 0) +
+              (!this.onRoad ? speedRatio * 0.55 : 0),
+          );
+    const backward = this.velocityDirection.clone().multiplyScalar(-1);
     this.smoke.update(
       delta,
       position,
       this.normal,
-      this.velocityDirection.clone().multiplyScalar(-1),
-      this.airborneOffset > 0
-        ? 0
-        : Math.min(
-        1,
-        Math.abs(this.driftAmount) * 2.4 +
-          (!this.onRoad ? speedRatio * 0.65 : 0),
-          ),
+      backward,
+      this.right,
+      driftIntensity,
       !this.onRoad,
+    );
+    this.skids.update(
+      delta,
+      position,
+      this.normal,
+      this.velocityDirection,
+      this.right,
+      this.onRoad ? driftIntensity : 0,
+      this.airborneOffset > 0,
     );
 
     return {
@@ -310,5 +330,6 @@ export class Car {
   dispose() {
     this.mesh.dispose();
     this.smoke.dispose();
+    this.skids.dispose();
   }
 }

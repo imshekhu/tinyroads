@@ -2,15 +2,23 @@ import * as THREE from "three";
 import {
   COLORS,
   PLANET_RADIUS,
+  ROAD_LANES,
   ROAD_SAMPLE_COUNT,
   ROAD_WIDTH,
 } from "../config";
 import { angularDistance, slerpDirection } from "../math/SphericalMath";
+import {
+  CIRCUIT_SECTORS,
+  circuitLatitude,
+  circuitProgressFromTheta,
+  inSector,
+} from "./circuitPath";
 
 export type RoadSample = {
   normal: THREE.Vector3;
   position: THREE.Vector3;
   tangent: THREE.Vector3;
+  progress: number;
 };
 
 export type RoadInfo = {
@@ -22,11 +30,9 @@ export type RoadInfo = {
   route: "coast";
 };
 
+/** Kept for Planet terrain bias — latitude of the GP circuit at longitude theta. */
 export function mainRouteLatitude(theta: number) {
-  return (
-    Math.sin(theta * 3 + 0.35) * 0.11 +
-    Math.sin(theta * 7 - 0.8) * 0.025
-  );
+  return circuitLatitude(circuitProgressFromTheta(theta));
 }
 
 export class RoadNetwork {
@@ -38,19 +44,22 @@ export class RoadNetwork {
 
   constructor(surfaceRadiusAt: (normal: THREE.Vector3) => number) {
     this.surfaceRadiusAt = surfaceRadiusAt;
-    this.group.name = "four-lane-circuit";
+    this.group.name = "eight-lane-grand-prix-circuit";
     this.generateSamples();
     this.lapLength = this.measureLap();
     this.buildRoad();
     this.buildLaneMarkings();
+    this.buildChicaneKerbs();
     this.buildContainmentBarriers();
   }
 
   private generateSamples() {
     const positions: THREE.Vector3[] = [];
+    const progresses: number[] = [];
     for (let index = 0; index < ROAD_SAMPLE_COUNT; index += 1) {
-      const theta = (index / ROAD_SAMPLE_COUNT) * Math.PI * 2;
-      const latitude = mainRouteLatitude(theta);
+      const progress = index / ROAD_SAMPLE_COUNT;
+      const theta = progress * Math.PI * 2;
+      const latitude = circuitLatitude(progress);
       const normal = new THREE.Vector3(
         Math.cos(latitude) * Math.cos(theta),
         Math.sin(latitude),
@@ -61,6 +70,7 @@ export class RoadNetwork {
           .clone()
           .multiplyScalar(this.surfaceRadiusAt(normal) + 0.04),
       );
+      progresses.push(progress);
     }
 
     for (let index = 0; index < ROAD_SAMPLE_COUNT; index += 1) {
@@ -72,7 +82,12 @@ export class RoadNetwork {
       const tangent = difference
         .addScaledVector(normal, -difference.dot(normal))
         .normalize();
-      this.samples.push({ normal, position: positions[index], tangent });
+      this.samples.push({
+        normal,
+        position: positions[index],
+        tangent,
+        progress: progresses[index],
+      });
     }
   }
 
@@ -130,34 +145,42 @@ export class RoadNetwork {
   }
 
   private buildRoad() {
-    const shoulder = this.makeRibbon(
-      ROAD_WIDTH + 0.22,
-      0,
-      0xe97937,
-    );
+    const shoulder = this.makeRibbon(ROAD_WIDTH + 0.34, 0, 0xe97937);
     shoulder.name = "circuit-safety-shoulder";
     shoulder.receiveShadow = true;
     const asphalt = this.makeRibbon(ROAD_WIDTH, 0.012, COLORS.road);
-    asphalt.name = "four-lane-asphalt";
+    asphalt.name = "eight-lane-asphalt";
     asphalt.receiveShadow = true;
     this.group.add(shoulder, asphalt);
   }
 
   private buildLaneMarkings() {
-    const stride = 9;
+    const laneWidth = ROAD_WIDTH / ROAD_LANES;
+    const stride = 8;
     const countPerLine = Math.floor(this.samples.length / stride);
-    const offsets = [-ROAD_WIDTH * 0.25, 0, ROAD_WIDTH * 0.25];
-    const geometry = new THREE.BoxGeometry(0.014, 0.012, 0.13);
-    const material = new THREE.MeshBasicMaterial({ color: 0xf7e9bd });
+    const offsets: number[] = [];
+    for (let lane = 1; lane < ROAD_LANES; lane += 1) {
+      offsets.push(-ROAD_WIDTH / 2 + lane * laneWidth);
+    }
+    const geometry = new THREE.BoxGeometry(0.012, 0.011, 0.11);
+    const white = new THREE.MeshBasicMaterial({ color: 0xf7e9bd });
+    const yellow = new THREE.MeshBasicMaterial({ color: COLORS.roadLine });
     const markings = new THREE.InstancedMesh(
       geometry,
-      material,
+      white,
       countPerLine * offsets.length,
+    );
+    const centerLine = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.018, 0.012, 0.16),
+      yellow,
+      countPerLine,
     );
     const matrix = new THREE.Matrix4();
     const orientation = new THREE.Matrix4();
     let instance = 0;
+    let centerInstance = 0;
     for (const offset of offsets) {
+      const isCenter = Math.abs(offset) < laneWidth * 0.25;
       for (let index = 0; index < countPerLine; index += 1) {
         const sample = this.samples[index * stride];
         const right = new THREE.Vector3()
@@ -169,18 +192,76 @@ export class RoadNetwork {
           .addScaledVector(right, offset)
           .addScaledVector(sample.normal, 0.063);
         matrix.copy(orientation).setPosition(position);
-        markings.setMatrixAt(instance++, matrix);
+        if (isCenter) {
+          centerLine.setMatrixAt(centerInstance++, matrix);
+        } else {
+          markings.setMatrixAt(instance++, matrix);
+        }
       }
     }
+    markings.count = instance;
+    centerLine.count = centerInstance;
     markings.instanceMatrix.needsUpdate = true;
-    markings.name = "four-lane-dividers";
-    this.group.add(markings);
+    centerLine.instanceMatrix.needsUpdate = true;
+    markings.name = "eight-lane-dividers";
+    centerLine.name = "center-line";
+    this.group.add(markings, centerLine);
+  }
+
+  private buildChicaneKerbs() {
+    const sectors = [
+      CIRCUIT_SECTORS.primaVariante,
+      CIRCUIT_SECTORS.secondaVariante,
+      CIRCUIT_SECTORS.ascari,
+    ];
+    const red = new THREE.MeshBasicMaterial({ color: 0xd62828 });
+    const white = new THREE.MeshBasicMaterial({ color: 0xf4f0e6 });
+    const geometry = new THREE.BoxGeometry(0.05, 0.02, 0.12);
+    const candidates = this.samples.filter((sample) =>
+      sectors.some((sector) => inSector(sample.progress, sector)),
+    );
+    const kerbs = new THREE.InstancedMesh(
+      geometry,
+      red,
+      candidates.length * 2,
+    );
+    const whiteKerbs = new THREE.InstancedMesh(
+      geometry,
+      white,
+      candidates.length * 2,
+    );
+    const matrix = new THREE.Matrix4();
+    const orientation = new THREE.Matrix4();
+    let redCount = 0;
+    let whiteCount = 0;
+    candidates.forEach((sample, index) => {
+      const right = new THREE.Vector3()
+        .crossVectors(sample.normal, sample.tangent)
+        .normalize();
+      orientation.makeBasis(right, sample.normal, sample.tangent);
+      for (const side of [-1, 1]) {
+        const position = sample.position
+          .clone()
+          .addScaledVector(right, side * (ROAD_WIDTH * 0.5 + 0.02))
+          .addScaledVector(sample.normal, 0.055);
+        matrix.copy(orientation).setPosition(position);
+        if (index % 2 === 0) kerbs.setMatrixAt(redCount++, matrix);
+        else whiteKerbs.setMatrixAt(whiteCount++, matrix);
+      }
+    });
+    kerbs.count = redCount;
+    whiteKerbs.count = whiteCount;
+    kerbs.instanceMatrix.needsUpdate = true;
+    whiteKerbs.instanceMatrix.needsUpdate = true;
+    kerbs.name = "chicane-kerbs-red";
+    whiteKerbs.name = "chicane-kerbs-white";
+    this.group.add(kerbs, whiteKerbs);
   }
 
   private buildContainmentBarriers() {
     const stride = 2;
     const segmentCount = Math.ceil(this.samples.length / stride);
-    const barrierGeometry = new THREE.BoxGeometry(0.045, 0.12, 0.25);
+    const barrierGeometry = new THREE.BoxGeometry(0.05, 0.13, 0.26);
     const barrierMaterial = new THREE.MeshStandardMaterial({
       color: 0xf4eee2,
       metalness: 0.25,
@@ -203,8 +284,8 @@ export class RoadNetwork {
       for (const side of [-1, 1]) {
         const position = sample.position
           .clone()
-          .addScaledVector(right, side * (ROAD_WIDTH * 0.5 + 0.065))
-          .addScaledVector(sample.normal, 0.105);
+          .addScaledVector(right, side * (ROAD_WIDTH * 0.5 + 0.08))
+          .addScaledVector(sample.normal, 0.11);
         matrix.copy(orientation).setPosition(position);
         barriers.setMatrixAt(instance++, matrix);
       }
@@ -224,7 +305,8 @@ export class RoadNetwork {
     );
     let bestIndex = estimatedIndex % this.samples.length;
     let bestDot = -Infinity;
-    for (let offset = -5; offset <= 5; offset += 1) {
+    // Wider window so sharp chicane curvature still resolves the nearest sample.
+    for (let offset = -18; offset <= 18; offset += 1) {
       const index =
         (estimatedIndex + offset + this.samples.length) % this.samples.length;
       const dot = normal.dot(this.samples[index].normal);
@@ -239,7 +321,7 @@ export class RoadNetwork {
       index: bestIndex,
       tangent: sample.tangent,
       normal: sample.normal,
-      progress: bestIndex / this.samples.length,
+      progress: sample.progress,
       route: "coast",
     };
   }

@@ -322,8 +322,10 @@ export class PowerSystem {
   }
 
   private buildCapsules() {
-    const indices = [95, 240, 400, 560, 720, 880, 1040, 1240, 1360];
-    for (const index of indices) {
+    // Spread capsules through GP sectors (straights + corner exits).
+    const progresses = [0.05, 0.18, 0.28, 0.36, 0.47, 0.55, 0.64, 0.75, 0.86, 0.94];
+    for (const progress of progresses) {
+      const index = Math.round(progress * (this.road.samples.length - 1));
       const sample = this.road.samples[index];
       const material = new THREE.MeshStandardMaterial({
         color: 0xfff2b0,

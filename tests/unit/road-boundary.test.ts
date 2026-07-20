@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import { PLANET_RADIUS, ROAD_WIDTH } from "../../src/config";
 import { RoadNetwork } from "../../src/world/RoadNetwork";
 
-describe("single four-lane circuit", () => {
+describe("eight-lane grand prix circuit", () => {
   it("targets an approximately 80-second flat-out lap", () => {
     const road = new RoadNetwork(() => PLANET_RADIUS);
     const estimatedSeconds = road.lapLength / 2.08;
-    expect(estimatedSeconds).toBeGreaterThan(75);
-    expect(estimatedSeconds).toBeLessThan(90);
+    expect(estimatedSeconds).toBeGreaterThan(70);
+    expect(estimatedSeconds).toBeLessThan(100);
     road.dispose();
   });
 

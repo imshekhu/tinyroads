@@ -5,31 +5,38 @@ type Puff = {
   velocity: THREE.Vector3;
   life: number;
   maxLife: number;
+  spin: number;
 };
 
+/**
+ * Tire smoke + rubber dust. Spawns from both rear corners with lateral kick
+ * so drifts read as sliding rubber instead of a single blob behind the car.
+ */
 export class DriftSmoke {
   readonly group = new THREE.Group();
   private readonly puffs: Puff[] = [];
   private cursor = 0;
   private spawnAccumulator = 0;
+  private readonly sharedGeometry = new THREE.SphereGeometry(0.05, 8, 6);
 
   constructor() {
-    const geometry = new THREE.IcosahedronGeometry(0.045, 1);
-    const material = new THREE.MeshBasicMaterial({
-      color: 0xe9dfcb,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-    });
-    for (let index = 0; index < 32; index += 1) {
-      const mesh = new THREE.Mesh(geometry, material.clone());
+    for (let index = 0; index < 72; index += 1) {
+      const material = new THREE.MeshBasicMaterial({
+        color: 0xd8d2c6,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(this.sharedGeometry, material);
       mesh.visible = false;
+      mesh.renderOrder = 2;
       this.group.add(mesh);
       this.puffs.push({
         mesh,
         velocity: new THREE.Vector3(),
         life: 0,
         maxLife: 1,
+        spin: 0,
       });
     }
   }
@@ -39,12 +46,15 @@ export class DriftSmoke {
     position: THREE.Vector3,
     up: THREE.Vector3,
     backward: THREE.Vector3,
+    right: THREE.Vector3,
     intensity: number,
     offRoad: boolean,
   ) {
-    this.spawnAccumulator += intensity * delta * 24;
+    const rate = intensity * (offRoad ? 38 : 52);
+    this.spawnAccumulator += rate * delta;
     while (this.spawnAccumulator >= 1) {
-      this.spawn(position, up, backward, offRoad);
+      const side = this.spawnAccumulator % 2 < 1 ? -1 : 1;
+      this.spawn(position, up, backward, right, side, intensity, offRoad);
       this.spawnAccumulator -= 1;
     }
 
@@ -56,11 +66,19 @@ export class DriftSmoke {
         continue;
       }
       puff.mesh.position.addScaledVector(puff.velocity, delta);
-      puff.mesh.position.addScaledVector(up, delta * 0.012);
+      puff.mesh.position.addScaledVector(up, delta * 0.04);
+      puff.velocity.multiplyScalar(Math.exp(-delta * 1.8));
+      puff.mesh.rotation.y += puff.spin * delta;
       const progress = 1 - puff.life / puff.maxLife;
-      puff.mesh.scale.setScalar(0.6 + progress * 2.4);
+      const swell = 0.55 + progress * 2.8;
+      puff.mesh.scale.set(swell * 1.35, swell * 0.75, swell * 1.35);
       const material = puff.mesh.material as THREE.MeshBasicMaterial;
-      material.opacity = Math.sin(progress * Math.PI) * 0.3;
+      // Peak early, hang as a soft haze, then fade — reads as tire smoke.
+      const envelope =
+        progress < 0.18
+          ? progress / 0.18
+          : Math.max(0, 1 - (progress - 0.18) / 0.82);
+      material.opacity = envelope * (offRoad ? 0.42 : 0.55) * Math.min(1, intensity + 0.25);
     }
   }
 
@@ -68,36 +86,45 @@ export class DriftSmoke {
     position: THREE.Vector3,
     up: THREE.Vector3,
     backward: THREE.Vector3,
+    right: THREE.Vector3,
+    side: number,
+    intensity: number,
     offRoad: boolean,
   ) {
     const puff = this.puffs[this.cursor];
     this.cursor = (this.cursor + 1) % this.puffs.length;
-    puff.life = offRoad ? 1.25 : 0.78;
+    puff.life = offRoad ? 1.05 : 0.85 + intensity * 0.35;
     puff.maxLife = puff.life;
+    puff.spin = (Math.random() - 0.5) * 4;
     puff.mesh.visible = true;
     puff.mesh.position
       .copy(position)
-      .addScaledVector(backward, 0.14)
-      .addScaledVector(up, 0.025);
-    puff.mesh.scale.setScalar(0.5);
+      .addScaledVector(backward, 0.12 + Math.random() * 0.04)
+      .addScaledVector(right, side * (0.07 + Math.random() * 0.03))
+      .addScaledVector(up, 0.018);
+    puff.mesh.scale.setScalar(0.45);
     puff.velocity
       .copy(backward)
-      .multiplyScalar(0.05 + Math.random() * 0.04)
-      .addScaledVector(
-        new THREE.Vector3(
-          (Math.random() - 0.5) * 0.02,
-          (Math.random() - 0.5) * 0.02,
-          (Math.random() - 0.5) * 0.02,
-        ),
-        1,
-      );
+      .multiplyScalar(0.08 + Math.random() * 0.1)
+      .addScaledVector(right, side * (0.12 + Math.random() * 0.16) * intensity)
+      .addScaledVector(up, 0.02 + Math.random() * 0.05);
     const material = puff.mesh.material as THREE.MeshBasicMaterial;
-    material.color.setHex(offRoad ? 0xc9a975 : 0xe8e2d7);
+    if (offRoad) {
+      material.color.setHex(0xb89562);
+    } else {
+      // Hot rubber: darker gray with a slight warm tint when intense.
+      const heat = Math.min(1, intensity);
+      material.color.setRGB(
+        0.72 - heat * 0.22,
+        0.7 - heat * 0.2,
+        0.66 - heat * 0.16,
+      );
+    }
   }
 
   dispose() {
+    this.sharedGeometry.dispose();
     for (const puff of this.puffs) {
-      puff.mesh.geometry.dispose();
       (puff.mesh.material as THREE.Material).dispose();
     }
   }

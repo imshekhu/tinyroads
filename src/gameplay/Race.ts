@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { PLANET_RADIUS } from "../config";
+import { PLANET_RADIUS, ROAD_WIDTH } from "../config";
 import { angularDistance, orientationFromFrame } from "../math/SphericalMath";
 import type { Planet } from "../world/Planet";
 
@@ -58,8 +58,9 @@ export class Race {
         roughness: 0.45,
         metalness: 0.12,
       });
+      const gateRadius = ROAD_WIDTH * 0.55;
       const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(0.5, 0.03, 8, 40),
+        new THREE.TorusGeometry(gateRadius, 0.035, 8, 40),
         material,
       );
       ring.castShadow = true;
@@ -67,11 +68,11 @@ export class Race {
 
       for (const side of [-1, 1]) {
         const post = new THREE.Mesh(
-          new THREE.BoxGeometry(0.028, 0.24, 0.028),
+          new THREE.BoxGeometry(0.032, 0.26, 0.032),
           material,
         );
         post.scale.y = 2;
-        post.position.set(side * 0.49, -0.24, 0);
+        post.position.set(side * gateRadius, -0.26, 0);
         post.castShadow = true;
         group.add(post);
       }
@@ -100,7 +101,7 @@ export class Race {
 
     const target = this.gates[this.nextGate];
     const distance = angularDistance(carNormal, target.normal) * PLANET_RADIUS;
-    const nowInside = distance < 0.46;
+    const nowInside = distance < ROAD_WIDTH * 0.45;
 
     if (nowInside && !this.insideGate) {
       this.handleGate();

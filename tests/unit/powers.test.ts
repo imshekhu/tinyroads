@@ -26,8 +26,8 @@ describe("arcade power system", () => {
   it("picks up one capsule charge and blocks a second until used", () => {
     const road = new RoadNetwork(() => PLANET_RADIUS);
     const powers = new PowerSystem(road);
-    const firstSample = road.samples[95];
-    const nextSample = road.samples[240];
+    const firstSample = road.samples[Math.round(0.05 * (road.samples.length - 1))];
+    const nextSample = road.samples[Math.round(0.18 * (road.samples.length - 1))];
 
     const first = powers.tryPickup(firstSample.normal.clone());
     expect(first.picked).not.toBeNull();
@@ -44,7 +44,7 @@ describe("arcade power system", () => {
   it("applies orbit rush modifiers after activation", () => {
     const road = new RoadNetwork(() => PLANET_RADIUS);
     const powers = new PowerSystem(road);
-    const sample = road.samples[95];
+    const sample = road.samples[Math.round(0.05 * (road.samples.length - 1))];
     powers.tryPickup(sample.normal.clone());
 
     // Force a deterministic held power for the modifier assertion.
@@ -73,7 +73,7 @@ describe("arcade power system", () => {
   it("drops a tar trail slick that affects nearby cars", () => {
     const road = new RoadNetwork(() => PLANET_RADIUS);
     const powers = new PowerSystem(road);
-    const sample = road.samples[240];
+    const sample = road.samples[Math.round(0.28 * (road.samples.length - 1))];
     (powers as unknown as { held: string }).held = "tar-trail";
 
     const used = powers.tryActivate({

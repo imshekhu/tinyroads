@@ -41,7 +41,8 @@ export class Planet {
     const theta = Math.atan2(n.z, n.x);
     const mainY = Math.sin(mainRouteLatitude(theta));
     const routeDistance = Math.abs(n.y - mainY);
-    const roadContinent = Math.max(0, 1 - routeDistance / 0.22) * 0.29;
+    // Wider land shelf under the eight-lane GP ribbon and its runoff.
+    const roadContinent = Math.max(0, 1 - routeDistance / 0.3) * 0.32;
     const broad = fbm3D(n.x * 1.65, n.y * 1.65, n.z * 1.65, this.seed, 4);
     const detail = fbm3D(n.x * 5.2, n.y * 5.2, n.z * 5.2, this.seed + 91, 3);
     const mountain = Math.max(

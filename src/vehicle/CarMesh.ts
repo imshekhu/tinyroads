@@ -191,21 +191,34 @@ export class CarMesh {
   }
 
   update(speed: number, steering: number, delta: number, drift: number) {
-    this.wheelRotation += speed * delta * 6.4;
+    const slip = Math.min(1.35, Math.abs(drift));
+    const speedFactor = Math.min(Math.abs(speed), 1.4);
+    this.wheelRotation += speed * delta * (6.4 + slip * 1.8);
     for (const assembly of this.wheels) {
       assembly.wheel.rotation.x = this.wheelRotation;
     }
     for (const assembly of this.frontWheels) {
-      assembly.pivot.rotation.y = -steering * 0.42;
+      assembly.pivot.rotation.y = -steering * (0.42 + slip * 0.12);
     }
+    // Body rolls into the slide and yaws harder so drifts read clearly.
     this.visual.rotation.z = THREE.MathUtils.lerp(
       this.visual.rotation.z,
-      -steering * Math.min(Math.abs(speed), 1) * 0.045,
-      1 - Math.exp(-delta * 9),
+      -steering * speedFactor * 0.05 - Math.sign(drift || steering || 1) * slip * 0.08,
+      1 - Math.exp(-delta * 10),
     );
     this.visual.rotation.y = THREE.MathUtils.lerp(
       this.visual.rotation.y,
-      -drift * 0.11,
+      -drift * 0.28,
+      1 - Math.exp(-delta * 9),
+    );
+    this.visual.rotation.x = THREE.MathUtils.lerp(
+      this.visual.rotation.x,
+      -slip * 0.035,
+      1 - Math.exp(-delta * 8),
+    );
+    this.visual.position.y = THREE.MathUtils.lerp(
+      this.visual.position.y,
+      slip * 0.012,
       1 - Math.exp(-delta * 8),
     );
   }

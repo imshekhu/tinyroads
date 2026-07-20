@@ -28,9 +28,8 @@ export function mountInterface(root: HTMLElement) {
         <p class="kicker">A tiny driving adventure</p>
         <h1 id="game-title"><span>Tiny</span> Roads</h1>
         <p class="start-copy">
-          Master one enormous four-lane circuit, snag road capsules,
-          and fire arcade powers with beach-buggy bursts, toy-car rush,
-          and kart-style tricks.
+          Attack an eight-lane Temple-of-Speed circuit — long straights,
+          chicanes, sweeping rights — then snag capsules and chain drifts.
         </p>
         <div class="mode-picker" role="group" aria-label="Choose game mode">
           ${Object.values(MODE_DEFINITIONS)
@@ -323,7 +322,7 @@ export class HUD {
     document.querySelector<HTMLElement>(".objective-card .ui-label")!.textContent =
       mode === "freestyle" ? "Stunt run / 01" : "Road trip / 01";
     document.querySelector<HTMLElement>(".race-card .ui-label")!.textContent =
-      mode === "multiplayer-race" ? "Live planet prix / 02" : "Island loop / 02";
+      mode === "multiplayer-race" ? "Live planet prix / 02" : "Grand prix loop / 02";
     this.networkStatus.textContent = definition.multiplayer
       ? "Connecting"
       : mode === "freestyle"

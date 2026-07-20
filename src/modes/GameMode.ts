@@ -26,7 +26,7 @@ export const MODE_DEFINITIONS: Record<GameMode, ModeDefinition> = {
     id: "multiplayer-race",
     name: "Planet Prix",
     label: "Online race",
-    description: "Match into a live room for a full four-lane circuit race.",
+    description: "Match into a live room for a full eight-lane grand prix race.",
     objective: "First clean lap wins",
     multiplayer: true,
     raceEnabled: true,

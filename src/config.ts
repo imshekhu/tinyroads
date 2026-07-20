@@ -1,7 +1,9 @@
 export const PLANET_RADIUS = 26;
 export const OCEAN_LEVEL = 0.015;
-export const ROAD_WIDTH = 0.74;
-export const ROAD_SAMPLE_COUNT = 1400;
+/** Eight-lane grand-prix asphalt width in world units. */
+export const ROAD_WIDTH = 1.32;
+export const ROAD_LANES = 8;
+export const ROAD_SAMPLE_COUNT = 1600;
 export const CAR_CLEARANCE = 0.055;
 
 export const COLORS = {
