@@ -1227,6 +1227,16 @@ kbd {
     font-size: 14px;
   }
 
+  .track-picker {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: none;
+    margin-top: 12px;
+  }
+
+  .track-card small {
+    display: none;
+  }
+
   .mode-picker {
     margin-top: 14px;
   }
