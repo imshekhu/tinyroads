@@ -3,6 +3,7 @@ import { AudioEngine } from "../audio/AudioEngine";
 import { ChaseCamera } from "../camera/ChaseCamera";
 import { CAR_PALETTE, OCEAN_LEVEL } from "../config";
 import { Collectibles } from "../gameplay/Collectibles";
+import { PowerSystem } from "../gameplay/Powers";
 import { Race, type RaceSnapshot } from "../gameplay/Race";
 import { Controls } from "../input/Controls";
 import {
@@ -30,6 +31,7 @@ export class Game {
   private readonly collectibles: Collectibles;
   private readonly race: Race;
   private readonly trackFeatures: TrackFeatures;
+  private readonly powers: PowerSystem;
   private readonly modeManager = new ModeManager();
   private readonly remoteCars: RemoteCars;
   private multiplayer: MultiplayerClient | null = null;
@@ -51,6 +53,7 @@ export class Game {
   private totalStyleScore = 0;
   private airChain = 0;
   private wasAirborne = false;
+  private powerBlockedToastCooldown = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -73,6 +76,7 @@ export class Game {
     this.planet = new Planet();
     this.atmosphere = new Atmosphere(this.scene);
     this.trackFeatures = new TrackFeatures(this.planet.road);
+    this.powers = new PowerSystem(this.planet.road);
     this.car = new Car(this.planet, this.selectedColor);
     this.remoteCars = new RemoteCars(this.planet);
     this.race = new Race(this.planet, (type, snapshot) =>
@@ -90,6 +94,7 @@ export class Game {
       this.planet.group,
       this.atmosphere.group,
       this.trackFeatures.group,
+      this.powers.group,
       this.remoteCars.group,
       this.car.mesh.group,
       this.car.smoke.group,
@@ -251,6 +256,7 @@ export class Game {
     this.remoteCars.dispose();
     this.car.reset();
     this.race.reset();
+    this.powers.reset();
     this.driftChain = 0;
     this.airChain = 0;
     this.driftGrace = 0;
@@ -457,6 +463,14 @@ export class Game {
       this.updatePreview(delta);
     } else {
       const input = this.controls.getInput();
+      const mods = { ...this.powers.modifiers };
+      if (this.powers.isOnSlick(this.car.normal)) {
+        mods.steerScale *= 0.72;
+        mods.gripScale *= 0.55;
+        mods.accelScale *= 0.7;
+        mods.speedCapScale *= 0.78;
+      }
+      this.car.modifiers = mods;
       const telemetry = this.car.update(delta, input);
       if (this.modeManager.current.multiplayer) {
         this.multiplayer?.sendInput(input);
@@ -482,6 +496,55 @@ export class Game {
         this.chaseCamera.addShake(0.2);
         this.hud.showToast("↑", "Air time", "Stay composed for the landing");
       }
+
+      this.powerBlockedToastCooldown = Math.max(
+        0,
+        this.powerBlockedToastCooldown - delta,
+      );
+      const pickup = this.powers.tryPickup(this.car.normal);
+      if (pickup.picked) {
+        this.audio.powerPickup();
+        this.chaseCamera.addShake(0.12);
+        this.hud.showToast(
+          pickup.picked.icon,
+          pickup.picked.name,
+          pickup.picked.description,
+        );
+      } else if (pickup.blocked && this.powerBlockedToastCooldown === 0) {
+        this.powerBlockedToastCooldown = 1.6;
+        this.hud.showToast("▣", "Already charged", "Press E to fire your power");
+      }
+
+      if (this.controls.consumeUsePower()) {
+        const dropBehind = this.car.normal
+          .clone()
+          .addScaledVector(this.car.forward, -0.045)
+          .normalize();
+        const used = this.powers.tryActivate({
+          canLaunch: this.modeManager.current.stuntEnabled,
+          launch: (force) => this.car.launch(force),
+          dropBehind,
+          forward: this.car.forward,
+          normal: this.car.normal,
+          fillBoost: () => this.car.fillBoost(1),
+          surgeSpeed: () => this.car.surgeSpeed(0.78),
+        });
+        if (used) {
+          this.audio.powerUse();
+          this.chaseCamera.addShake(0.22);
+          this.hud.showToast(used.icon, used.name, used.short);
+        }
+      }
+
+      const powerTick = this.powers.update(
+        delta,
+        this.elapsed,
+        this.car.normal,
+      );
+      if (powerTick.slicked) {
+        this.car.speed *= Math.exp(-delta * 1.8);
+      }
+
       this.chaseCamera.update(delta, telemetry);
       this.collectibles.update(this.elapsed, this.car.normal);
       const race = this.modeManager.current.raceEnabled
@@ -495,6 +558,7 @@ export class Game {
         sky,
         this.driftChain + this.airChain,
         this.totalStyleScore,
+        this.powers.hud,
       );
       this.audio.update(
         telemetry.speedRatio,
@@ -529,6 +593,7 @@ export class Game {
     this.collectibles.dispose();
     this.race.dispose();
     this.trackFeatures.dispose();
+    this.powers.dispose();
     this.remoteCars.dispose();
     this.planet.dispose();
     this.atmosphere.dispose();

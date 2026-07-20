@@ -7,6 +7,10 @@ import {
   rotateTangent,
   slerpDirection,
 } from "../math/SphericalMath";
+import {
+  DEFAULT_CAR_MODIFIERS,
+  type CarModifiers,
+} from "../gameplay/Powers";
 import type { Planet } from "../world/Planet";
 import { CarMesh } from "./CarMesh";
 import { DriftSmoke } from "./DriftSmoke";
@@ -39,6 +43,7 @@ export class Car {
   airborneOffset = 0;
   verticalVelocity = 0;
   airtime = 0;
+  modifiers: CarModifiers = { ...DEFAULT_CAR_MODIFIERS };
 
   private readonly orientation = new THREE.Quaternion();
   private readonly targetOrientation = new THREE.Quaternion();
@@ -67,7 +72,16 @@ export class Car {
     this.airborneOffset = 0;
     this.verticalVelocity = 0;
     this.airtime = 0;
+    this.modifiers = { ...DEFAULT_CAR_MODIFIERS };
     this.applyTransform(true);
+  }
+
+  fillBoost(amount = 1) {
+    this.boost = Math.min(1, Math.max(this.boost, amount));
+  }
+
+  surgeSpeed(amount = 0.72) {
+    this.speed = Math.max(this.speed + amount, 1.35);
   }
 
   setColor(color: number) {
@@ -117,10 +131,11 @@ export class Car {
   update(delta: number, input: DriveInput): CarTelemetry {
     const roadInfo = this.planet.road.getRoadInfo(this.normal);
     this.onRoad = roadInfo.distance < ROAD_WIDTH * 0.72;
+    const mods = this.modifiers;
 
-    const maxForwardSpeed = this.onRoad ? 2.08 : 0.88;
+    const maxForwardSpeed = (this.onRoad ? 2.08 : 0.88) * mods.speedCapScale;
     const maxReverseSpeed = -0.42;
-    const acceleration = this.onRoad ? 1.78 : 0.92;
+    const acceleration = (this.onRoad ? 1.78 : 0.92) * mods.accelScale;
     const boostActive = input.boost && this.boost > 0.015 && this.speed > 0.25;
     const speedLimit = boostActive ? maxForwardSpeed * 1.32 : maxForwardSpeed;
 
@@ -142,7 +157,10 @@ export class Car {
 
     if (boostActive) {
       this.speed += 1.38 * delta;
-      this.boost = Math.max(0, this.boost - delta * 0.32);
+      this.boost = Math.max(
+        0,
+        this.boost - delta * 0.32 * mods.boostDrainScale,
+      );
     } else {
       this.boost = Math.min(1, this.boost + delta * (this.onRoad ? 0.075 : 0.035));
     }
@@ -163,19 +181,24 @@ export class Car {
       speedLimit,
     );
 
-    const speedRatio = Math.min(1, Math.abs(this.speed) / maxForwardSpeed);
+    const speedRatio = Math.min(
+      1,
+      Math.abs(this.speed) / Math.max(0.001, 2.08 * mods.speedCapScale),
+    );
     const steeringAuthority =
       (0.35 + speedRatio * 0.9) *
       (input.handbrake ? 1.32 : 1) *
+      mods.steerScale *
       Math.sign(this.speed || 1);
     const steeringDelta = -input.steering * steeringAuthority * delta;
     rotateTangent(this.forward, this.normal, steeringDelta);
 
-    const grip = input.handbrake
-      ? 1.15
-      : this.onRoad
-        ? 5.8 - speedRatio * 1.8
-        : 2.35;
+    const grip =
+      (input.handbrake
+        ? 1.15
+        : this.onRoad
+          ? 5.8 - speedRatio * 1.8
+          : 2.35) * mods.gripScale;
     const gripAlpha = 1 - Math.exp(-grip * delta);
     slerpDirection(
       this.velocityDirection,
@@ -187,9 +210,10 @@ export class Car {
     const signedSlip = this.normal.dot(
       new THREE.Vector3().crossVectors(this.forward, this.velocityDirection),
     );
+    const driftScale = mods.gripScale > 1.5 ? 0.55 : 1;
     this.driftAmount = THREE.MathUtils.lerp(
       this.driftAmount,
-      signedSlip * speedRatio * (input.handbrake ? 4.5 : 2.4),
+      signedSlip * speedRatio * (input.handbrake ? 4.5 : 2.4) * driftScale,
       1 - Math.exp(-delta * 7),
     );
 
@@ -215,7 +239,7 @@ export class Car {
         .lerp(this.forward, 0.32)
         .addScaledVector(this.normal, -this.velocityDirection.dot(this.normal))
         .normalize();
-      this.speed *= 0.86;
+      this.speed *= mods.boundaryRetain;
       this.onRoad = true;
     }
 

@@ -4,6 +4,7 @@ import {
   MODE_DEFINITIONS,
   type GameMode,
 } from "../modes/GameMode";
+import type { PowerHudState } from "../gameplay/Powers";
 import type { CarTelemetry } from "../vehicle/Car";
 import type { SkyState } from "../world/Atmosphere";
 
@@ -27,8 +28,9 @@ export function mountInterface(root: HTMLElement) {
         <p class="kicker">A tiny driving adventure</p>
         <h1 id="game-title"><span>Tiny</span> Roads</h1>
         <p class="start-copy">
-          Master one enormous four-lane circuit, hit boost strips,
-          and build the cleanest drift chain on the planet.
+          Master one enormous four-lane circuit, snag road capsules,
+          and fire arcade powers with beach-buggy bursts, toy-car rush,
+          and kart-style tricks.
         </p>
         <div class="mode-picker" role="group" aria-label="Choose game mode">
           ${Object.values(MODE_DEFINITIONS)
@@ -84,7 +86,7 @@ export function mountInterface(root: HTMLElement) {
         </div>
       </div>
       <p class="start-controls">
-        <b>WASD</b> drive <b>Space</b> drift <b>Shift</b> boost
+        <b>WASD</b> drive <b>Space</b> drift <b>Shift</b> boost <b>E</b> power
       </p>
     </section>
 
@@ -150,6 +152,16 @@ export function mountInterface(root: HTMLElement) {
           <span>BOOST</span>
           <div><i id="boost-level"></i></div>
         </div>
+        <div class="power-slot" id="power-slot" aria-live="polite">
+          <span class="power-slot-label">POWER</span>
+          <div class="power-slot-body">
+            <b id="power-icon">·</b>
+            <div>
+              <strong id="power-name">Empty</strong>
+              <small id="power-meta">Grab a road capsule</small>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="drift-hud" id="drift-hud">
@@ -169,6 +181,9 @@ export function mountInterface(root: HTMLElement) {
           <button type="button" data-control="right" aria-label="Steer right">›</button>
         </div>
         <div class="touch-pedals">
+          <button type="button" data-control="usePower" aria-label="Use power">
+            <span>POWER</span>
+          </button>
           <button type="button" data-control="boost" aria-label="Boost">
             <span>BOOST</span>
           </button>
@@ -201,11 +216,13 @@ export function mountInterface(root: HTMLElement) {
         <div><kbd>A D</kbd><span>Steer</span></div>
         <div><kbd>Space</kbd><span>Handbrake drift</span></div>
         <div><kbd>Shift</kbd><span>Boost</span></div>
+        <div><kbd>E</kbd><span>Use power</span></div>
         <div><kbd>R</kbd><span>Return to road</span></div>
       </div>
       <p class="help-note">
-        Follow the dark road for grip. Explore the grass for shortcuts—but
-        expect dust and less speed. Drive through the glowing gate to begin a lap.
+        Follow the dark road for grip. Grab glowing road capsules for arcade
+        powers—Sand Surge, Orbit Rush, Bubble Shell, Sticky Treads, Sky Spring,
+        and Tar Trail. Drive through the glowing gate to begin a lap.
       </p>
     </dialog>
   `;
@@ -232,6 +249,14 @@ export class HUD {
     document.querySelector<HTMLElement>("#speed-ring")!;
   private readonly boostLevel =
     document.querySelector<HTMLElement>("#boost-level")!;
+  private readonly powerSlot =
+    document.querySelector<HTMLElement>("#power-slot")!;
+  private readonly powerIcon =
+    document.querySelector<HTMLElement>("#power-icon")!;
+  private readonly powerName =
+    document.querySelector<HTMLElement>("#power-name")!;
+  private readonly powerMeta =
+    document.querySelector<HTMLElement>("#power-meta")!;
   private readonly surfaceStatus =
     document.querySelector<HTMLElement>("#surface-status")!;
   private readonly skyPhase =
@@ -318,6 +343,7 @@ export class HUD {
     sky: SkyState,
     driftChain: number,
     totalStyleScore: number,
+    power: PowerHudState = { held: null, active: null, activeRemaining: 0 },
   ) {
     this.ui.style.setProperty(
       "--speed-intensity",
@@ -329,6 +355,33 @@ export class HUD {
       `${Math.round(telemetry.speedRatio * 270)}deg`,
     );
     this.boostLevel.style.width = `${Math.round(telemetry.boost * 100)}%`;
+    if (power.active) {
+      this.powerSlot.classList.add("is-active");
+      this.powerSlot.classList.remove("is-charged");
+      this.powerIcon.textContent = power.active.icon;
+      this.powerName.textContent = power.active.name;
+      this.powerMeta.textContent = `${power.activeRemaining.toFixed(1)}s left`;
+      this.powerSlot.style.setProperty(
+        "--power-color",
+        `#${power.active.color.toString(16).padStart(6, "0")}`,
+      );
+    } else if (power.held) {
+      this.powerSlot.classList.add("is-charged");
+      this.powerSlot.classList.remove("is-active");
+      this.powerIcon.textContent = power.held.icon;
+      this.powerName.textContent = power.held.name;
+      this.powerMeta.textContent = "Press E / POWER";
+      this.powerSlot.style.setProperty(
+        "--power-color",
+        `#${power.held.color.toString(16).padStart(6, "0")}`,
+      );
+    } else {
+      this.powerSlot.classList.remove("is-charged", "is-active");
+      this.powerIcon.textContent = "·";
+      this.powerName.textContent = "Empty";
+      this.powerMeta.textContent = "Grab a road capsule";
+      this.powerSlot.style.removeProperty("--power-color");
+    }
     const routeNames = {
       coast: "Coast circuit",
       highland: "Highland loop",

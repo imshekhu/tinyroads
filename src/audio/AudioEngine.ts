@@ -76,6 +76,14 @@ export class AudioEngine {
     this.playTone([440, 554, 659, 880], 0.11, "triangle", 0.16);
   }
 
+  powerPickup() {
+    this.playTone([520, 780, 1040], 0.06, "triangle", 0.14);
+  }
+
+  powerUse() {
+    this.playTone([300, 480, 640], 0.07, "square", 0.11);
+  }
+
   private playTone(
     notes: number[],
     spacing: number,

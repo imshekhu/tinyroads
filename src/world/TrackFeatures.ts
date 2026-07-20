@@ -40,6 +40,8 @@ export class TrackFeatures {
     this.buildTrackArches();
     this.buildBillboards();
     this.buildSignalTowers();
+    this.buildCornerPylons();
+    this.buildSpeedwayMarkers();
   }
 
   private placeAt(
@@ -56,11 +58,17 @@ export class TrackFeatures {
   }
 
   private buildBoostPads() {
+    // Mix isolated pads with a short "speedway" burst sequence.
     const selections = [
       this.road.samples[120],
+      this.road.samples[210],
+      this.road.samples[220],
+      this.road.samples[230],
       this.road.samples[350],
+      this.road.samples[480],
       this.road.samples[620],
       this.road.samples[850],
+      this.road.samples[990],
       this.road.samples[1100],
       this.road.samples[1300],
     ];
@@ -90,7 +98,9 @@ export class TrackFeatures {
     const accentMaterial = new THREE.MeshBasicMaterial({ color: 0xffdb4d });
     const selections = [
       this.road.samples[190],
+      this.road.samples[455],
       this.road.samples[690],
+      this.road.samples[930],
       this.road.samples[1210],
     ];
     selections.forEach((sample, index) => {
@@ -128,7 +138,9 @@ export class TrackFeatures {
   private buildRamps() {
     const selections = [
       this.road.samples[280],
+      this.road.samples[540],
       this.road.samples[760],
+      this.road.samples[1020],
       this.road.samples[1180],
     ];
     const material = new THREE.MeshStandardMaterial({
@@ -167,11 +179,13 @@ export class TrackFeatures {
   private buildBillboards() {
     const samples = [
       this.road.samples[80],
+      this.road.samples[310],
       this.road.samples[410],
+      this.road.samples[640],
       this.road.samples[780],
       this.road.samples[1150],
     ];
-    const colors = [0xf6c943, 0x4bd3e9, 0xff7040, 0x9e78e7];
+    const colors = [0xf6c943, 0x4bd3e9, 0xff7040, 0x9e78e7, 0x7dffb2, 0xff8ab8];
     samples.forEach((sample, index) => {
       const billboard = new THREE.Group();
       const right = new THREE.Vector3()
@@ -216,6 +230,7 @@ export class TrackFeatures {
   private buildSignalTowers() {
     const samples = [
       this.road.samples[520],
+      this.road.samples[860],
       this.road.samples[980],
     ];
     samples.forEach((sample, index) => {
@@ -234,7 +249,7 @@ export class TrackFeatures {
         const ring = new THREE.Mesh(
           new THREE.TorusGeometry(0.09 + level * 0.025, 0.009, 5, 18),
           new THREE.MeshBasicMaterial({
-            color: index === 0 ? 0x51d9ef : 0xff7650,
+            color: index === 0 ? 0x51d9ef : index === 1 ? 0xffdb4d : 0xff7650,
           }),
         );
         ring.position.y = 0.32 + level * 0.09;
@@ -248,6 +263,63 @@ export class TrackFeatures {
       tower.position.addScaledVector(side, 0.48);
       this.group.add(tower);
     });
+  }
+
+  private buildCornerPylons() {
+    const samples = [
+      this.road.samples[160],
+      this.road.samples[430],
+      this.road.samples[700],
+      this.road.samples[960],
+      this.road.samples[1260],
+    ];
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xfff1d0,
+      emissive: 0xff8a3d,
+      emissiveIntensity: 0.35,
+      roughness: 0.5,
+    });
+    samples.forEach((sample, index) => {
+      const right = new THREE.Vector3()
+        .crossVectors(sample.normal, sample.tangent)
+        .normalize();
+      for (const side of [-1, 1]) {
+        const pylon = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.03, 0.045, 0.22, 6),
+          material,
+        );
+        this.placeAt(pylon, sample, 0.12);
+        pylon.position.addScaledVector(
+          right,
+          side * (ROAD_WIDTH * 0.48 + 0.05),
+        );
+        pylon.position.addScaledVector(sample.tangent, (index % 2) * 0.08);
+        this.group.add(pylon);
+      }
+    });
+  }
+
+  private buildSpeedwayMarkers() {
+    const samples = [
+      this.road.samples[205],
+      this.road.samples[215],
+      this.road.samples[225],
+    ];
+    const material = new THREE.MeshBasicMaterial({ color: 0x56f0ff });
+    for (const sample of samples) {
+      const chevron = new THREE.Group();
+      for (let lane = -1; lane <= 1; lane += 1) {
+        const mark = new THREE.Mesh(
+          new THREE.ConeGeometry(0.05, 0.12, 3),
+          material,
+        );
+        mark.rotation.x = Math.PI / 2;
+        mark.position.set(lane * 0.16, 0.02, 0);
+        chevron.add(mark);
+      }
+      this.placeAt(chevron, sample, 0.05);
+      this.group.add(chevron);
+    }
   }
 
   update(

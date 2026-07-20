@@ -6,28 +6,46 @@ export type DriveInput = {
   boost: boolean;
 };
 
-type Action = "left" | "right" | "throttle" | "brake" | "handbrake" | "boost";
+type Action =
+  | "left"
+  | "right"
+  | "throttle"
+  | "brake"
+  | "handbrake"
+  | "boost"
+  | "usePower";
 
 export class Controls {
   private readonly pressed = new Set<Action>();
   private readonly cleanups: Array<() => void> = [];
   private enabled = false;
+  private usePowerQueued = false;
+  private gamepadUseWasDown = false;
 
   constructor() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!this.enabled || this.isEditableTarget(event.target)) return;
       const action = this.actionForKey(event.code);
       if (!action) return;
+      if (action === "usePower") {
+        if (!event.repeat) this.usePowerQueued = true;
+        event.preventDefault();
+        return;
+      }
       this.pressed.add(action);
       event.preventDefault();
     };
     const onKeyUp = (event: KeyboardEvent) => {
       const action = this.actionForKey(event.code);
-      if (!action) return;
+      if (!action || action === "usePower") return;
       this.pressed.delete(action);
       event.preventDefault();
     };
-    const onBlur = () => this.pressed.clear();
+    const onBlur = () => {
+      this.pressed.clear();
+      this.usePowerQueued = false;
+      this.gamepadUseWasDown = false;
+    };
 
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
@@ -44,12 +62,17 @@ export class Controls {
         if (!this.enabled) return;
         event.preventDefault();
         element.setPointerCapture(event.pointerId);
+        if (action === "usePower") {
+          this.usePowerQueued = true;
+          element.classList.add("is-pressed");
+          return;
+        }
         this.pressed.add(action);
         element.classList.add("is-pressed");
       };
       const release = (event: PointerEvent) => {
         event.preventDefault();
-        this.pressed.delete(action);
+        if (action !== "usePower") this.pressed.delete(action);
         element.classList.remove("is-pressed");
       };
       element.addEventListener("pointerdown", press);
@@ -83,6 +106,9 @@ export class Controls {
       case "ShiftLeft":
       case "ShiftRight":
         return "boost";
+      case "KeyE":
+      case "KeyQ":
+        return "usePower";
       default:
         return null;
     }
@@ -102,7 +128,22 @@ export class Controls {
 
   setEnabled(enabled: boolean) {
     this.enabled = enabled;
-    if (!enabled) this.pressed.clear();
+    if (!enabled) {
+      this.pressed.clear();
+      this.usePowerQueued = false;
+      this.gamepadUseWasDown = false;
+    }
+  }
+
+  consumeUsePower(): boolean {
+    const gamepad = navigator.getGamepads?.()[0];
+    const gamepadDown = Boolean(gamepad?.buttons[2]?.pressed);
+    if (gamepadDown && !this.gamepadUseWasDown) this.usePowerQueued = true;
+    this.gamepadUseWasDown = gamepadDown;
+
+    const queued = this.usePowerQueued;
+    this.usePowerQueued = false;
+    return queued;
   }
 
   getInput(): DriveInput {

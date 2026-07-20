@@ -124,9 +124,11 @@ test("shows usable touch driving controls on mobile", async ({
   const accelerate = page.getByRole("button", { name: "Accelerate" });
   const steer = page.getByRole("button", { name: "Steer left" });
   const boost = page.getByRole("button", { name: "Boost" });
+  const power = page.getByRole("button", { name: "Use power" });
   await expect(accelerate).toBeVisible();
   await expect(steer).toBeVisible();
   await expect(boost).toBeVisible();
+  await expect(power).toBeVisible();
 
   await accelerate.dispatchEvent("pointerdown", {
     pointerId: 1,

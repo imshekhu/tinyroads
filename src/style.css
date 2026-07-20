@@ -816,6 +816,81 @@ a:focus-visible {
   transition: width 120ms linear;
 }
 
+.power-slot {
+  --power-color: rgba(255, 255, 255, 0.35);
+  width: 150px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(18, 22, 26, 0.62);
+  backdrop-filter: blur(12px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.power-slot-label {
+  display: block;
+  margin-bottom: 6px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.power-slot-body {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.power-slot-body > b {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--power-color) 35%, rgba(255, 255, 255, 0.08));
+  color: white;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.power-slot-body strong {
+  display: block;
+  color: white;
+  font-size: 11px;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+}
+
+.power-slot-body small {
+  display: block;
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 8px;
+}
+
+.power-slot.is-charged {
+  border-color: color-mix(in srgb, var(--power-color) 55%, transparent);
+  box-shadow:
+    0 0 18px color-mix(in srgb, var(--power-color) 28%, transparent),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.power-slot.is-active {
+  border-color: color-mix(in srgb, var(--power-color) 70%, transparent);
+  animation: power-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes power-pulse {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
 .drift-hud {
   position: absolute;
   bottom: 30px;
@@ -1265,20 +1340,26 @@ kbd {
     border-color: rgba(247, 201, 71, 0.7);
   }
 
-  .touch-pedals button[data-control="handbrake"] {
-    width: 42px;
-    height: 42px;
-    align-self: flex-end;
-  }
-
+  .touch-pedals button[data-control="handbrake"],
+  .touch-pedals button[data-control="usePower"],
   .touch-pedals button[data-control="boost"] {
     width: 42px;
     height: 42px;
     align-self: flex-end;
+  }
+
+  .touch-pedals button[data-control="usePower"] {
+    border-color: rgba(255, 214, 120, 0.85);
+    background: linear-gradient(180deg, #ffe08a, #f0b34a);
+    color: #24180a;
+  }
+
+  .touch-pedals button[data-control="boost"] {
     border-color: rgba(247, 201, 71, 0.7);
   }
 
   .touch-pedals button[data-control="handbrake"] span,
+  .touch-pedals button[data-control="usePower"] span,
   .touch-pedals button[data-control="boost"] span {
     font-size: 7px;
     font-weight: 850;
