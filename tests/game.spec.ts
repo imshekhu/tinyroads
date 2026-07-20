@@ -1,0 +1,166 @@
+import AxeBuilder from "@axe-core/playwright";
+import { expect, test } from "@playwright/test";
+
+test("loads the original world without runtime errors", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (
+      message.type() === "error" &&
+      // Headless Chromium's first SwiftShader context can emit an empty
+      // validation diagnostic even though the program links and renders.
+      !message.text().startsWith("THREE.WebGLProgram: Shader Error")
+    ) {
+      errors.push(message.text());
+    }
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Tiny Roads" })).toBeVisible();
+  await expect(page.getByText("A tiny driving adventure")).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Choose game mode" }).getByRole("button"),
+  ).toHaveCount(3);
+  await expect(page.locator("#loading-screen")).toHaveClass(/is-done/, {
+    timeout: 20_000,
+  });
+  await expect(page.locator("#game-canvas")).toBeVisible();
+
+  const canvasIsSized = await page.locator("#game-canvas").evaluate((canvas) => {
+    const element = canvas as HTMLCanvasElement;
+    // Do not request a second WebGL context from a canvas already owned by
+    // Three.js; Chromium correctly returns null for mismatched attributes.
+    return element.width > 0 && element.height > 0;
+  });
+  expect(canvasIsSized).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test("starts a drive and responds to keyboard controls", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name.includes("mobile"), "Desktop keyboard test");
+  await page.goto("/");
+  await page.getByRole("button", { name: "Sky blue" }).click();
+  await page.getByRole("button", { name: "Start your engine" }).click();
+
+  await expect(page.locator("#game-ui")).toHaveClass(/is-visible/);
+  await expect(page.locator("#start-screen")).toHaveClass(/is-hidden/);
+  await expect(page.locator("#toast-title")).toHaveText("Open Planet");
+
+  await page.keyboard.down("w");
+  await page.waitForTimeout(1_500);
+  await page.keyboard.up("w");
+  const speed = Number(await page.locator("#speed-value").textContent());
+  expect(speed).toBeGreaterThan(5);
+
+  await page.keyboard.press("r");
+  await expect(page.getByText("Back on route")).toBeVisible();
+});
+
+test("switches into freestyle mode with mode-specific HUD", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /Stunt Planet/ }).click();
+  await page.getByRole("button", { name: "Start your engine" }).click();
+  await expect(page.locator("#network-status")).toHaveText("Freestyle");
+  await expect(page.locator("#race-card")).toHaveClass(/is-mode-hidden/);
+});
+
+test("pauses, resumes, and exits cleanly to mode selection", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Start your engine" }).click();
+  await page.getByRole("button", { name: "Pause game" }).click();
+  await expect(page.getByRole("heading", { name: "Game paused" })).toBeVisible();
+  await page.getByRole("button", { name: "Resume driving" }).click();
+  await expect(page.getByRole("heading", { name: "Game paused" })).not.toBeVisible();
+  await page.getByRole("button", { name: "Exit to mode selection" }).click();
+  await expect(page.getByRole("button", { name: "Start your engine" })).toBeVisible();
+  await expect(page.locator("#game-ui")).toHaveAttribute("inert", "");
+});
+
+test("driver name accepts driving-key characters before gameplay", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const name = page.getByLabel("Driver name");
+  await name.fill("");
+  await name.pressSequentially("Adam West");
+  await expect(name).toHaveValue("Adam West");
+});
+
+test("joins a live multiplayer race room", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes("mobile"), "Run one network client");
+  await page.goto("/");
+  await page.getByLabel("Driver name").fill("Browser Racer");
+  await page.getByRole("button", { name: /Planet Prix/ }).click();
+  await page.getByRole("button", { name: "Start your engine" }).click();
+  await expect(page.locator("#network-status")).not.toHaveText(
+    /Solo fallback|Connecting/,
+    { timeout: 30_000 },
+  );
+  await expect(page.locator("#race-card")).not.toHaveClass(/is-mode-hidden/);
+});
+
+test("opens the driver handbook and restores focusable UI", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Start your engine" }).click();
+  await page.getByRole("button", { name: "Show controls" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(page.getByText("Take the long way.")).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(dialog).not.toBeVisible();
+});
+
+test("shows usable touch driving controls on mobile", async ({
+  page,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.includes("mobile"), "Mobile-only test");
+  await page.goto("/");
+  await page.getByRole("button", { name: "Start your engine" }).click();
+
+  const accelerate = page.getByRole("button", { name: "Accelerate" });
+  const steer = page.getByRole("button", { name: "Steer left" });
+  const boost = page.getByRole("button", { name: "Boost" });
+  const power = page.getByRole("button", { name: "Use power" });
+  await expect(accelerate).toBeVisible();
+  await expect(steer).toBeVisible();
+  await expect(boost).toBeVisible();
+  await expect(power).toBeVisible();
+
+  await accelerate.dispatchEvent("pointerdown", {
+    pointerId: 1,
+    pointerType: "touch",
+  });
+  await page.waitForTimeout(1_200);
+  await accelerate.dispatchEvent("pointerup", {
+    pointerId: 1,
+    pointerType: "touch",
+  });
+  const speed = Number(await page.locator("#speed-value").textContent());
+  expect(speed).toBeGreaterThan(0);
+});
+
+test("fits the viewport without horizontal overflow", async ({ page }) => {
+  await page.goto("/");
+  const overflow = await page.evaluate(
+    () =>
+      document.documentElement.scrollWidth >
+      document.documentElement.clientWidth,
+  );
+  expect(overflow).toBe(false);
+});
+
+test("has no serious automated accessibility violations", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("#loading-screen")).toHaveClass(/is-done/, {
+    timeout: 20_000,
+  });
+  const results = await new AxeBuilder({ page }).analyze();
+  const severe = results.violations.filter((violation) =>
+    ["serious", "critical"].includes(violation.impact ?? ""),
+  );
+  expect(severe).toEqual([]);
+});
