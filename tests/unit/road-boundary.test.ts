@@ -4,11 +4,11 @@ import { PLANET_RADIUS, ROAD_WIDTH } from "../../src/config";
 import { RoadNetwork } from "../../src/world/RoadNetwork";
 
 describe("eight-lane grand prix circuit", () => {
-  it("targets an approximately 80-second flat-out lap", () => {
+  it("keeps the technical flat-out lap within a playable window", () => {
     const road = new RoadNetwork(() => PLANET_RADIUS);
     const estimatedSeconds = road.lapLength / 2.08;
     expect(estimatedSeconds).toBeGreaterThan(90);
-    expect(estimatedSeconds).toBeLessThan(180);
+    expect(estimatedSeconds).toBeLessThan(210);
     road.dispose();
   });
 

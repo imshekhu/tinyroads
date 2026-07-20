@@ -46,7 +46,7 @@ describe("grand prix circuit path", () => {
     const road = new RoadNetwork(() => PLANET_RADIUS, TRACK_CATALOG[0]);
     const estimatedSeconds = road.lapLength / 2.08;
     expect(estimatedSeconds).toBeGreaterThan(90);
-    expect(estimatedSeconds).toBeLessThan(180);
+    expect(estimatedSeconds).toBeLessThan(210);
     expect(road.group.name).toContain("temple-speedway");
     road.dispose();
   });

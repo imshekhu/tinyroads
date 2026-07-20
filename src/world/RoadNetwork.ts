@@ -8,7 +8,6 @@ import {
 } from "../config";
 import {
   angularDistance,
-  orientationFromFrame,
   slerpDirection,
 } from "../math/SphericalMath";
 import {
