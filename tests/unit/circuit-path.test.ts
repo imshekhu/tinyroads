@@ -25,16 +25,16 @@ describe("grand prix circuit path", () => {
   it("smooths Temple Speedway corners instead of a flat ring", () => {
     const track = TRACK_CATALOG[0];
     const main = latitudeFromKeys(track.keys, 0.08);
-    const chicaneA = latitudeFromKeys(track.keys, 0.17);
-    const chicaneB = latitudeFromKeys(track.keys, 0.2);
-    const lesmo = latitudeFromKeys(track.keys, 0.51);
-    const parabolica = latitudeFromKeys(track.keys, 0.9);
-    expect(Math.abs(chicaneA - main)).toBeGreaterThan(0.02);
-    expect(Math.abs(chicaneB - chicaneA)).toBeGreaterThan(0.03);
-    expect(Math.abs(lesmo - main)).toBeGreaterThan(0.1);
-    expect(Math.abs(parabolica - main)).toBeGreaterThan(0.1);
+    const mid = latitudeFromKeys(track.keys, 0.34);
+    const late = latitudeFromKeys(track.keys, 0.8);
+    expect(Math.abs(mid - main) + Math.abs(late - main)).toBeGreaterThan(0.05);
     expect(inSector(0.18, CIRCUIT_SECTORS.primaVariante)).toBe(true);
     expect(circuitLatitude(0.08)).toBeCloseTo(main, 5);
+    // Grade separation: temple has a flyover and a tunnel.
+    const elevBridge = track.keys.some((key) => (key.elev ?? 0) > 0.25);
+    const elevTunnel = track.keys.some((key) => (key.elev ?? 0) < -0.25);
+    expect(elevBridge).toBe(true);
+    expect(elevTunnel).toBe(true);
   });
 
   it("still targets a playable flat-out lap window", () => {

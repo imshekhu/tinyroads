@@ -95,6 +95,7 @@ export class Game {
       this.atmosphere.group,
       this.trackFeatures.group,
       this.powers.group,
+      this.powers.aura.group,
       this.remoteCars.group,
       this.car.mesh.group,
       this.car.smoke.group,
@@ -313,6 +314,7 @@ export class Game {
     this.scene.add(
       this.trackFeatures.group,
       this.powers.group,
+      this.powers.aura.group,
       this.collectibles.group,
       this.race.group,
     );
@@ -577,18 +579,20 @@ export class Game {
           .addScaledVector(this.car.forward, -0.045)
           .normalize();
         const used = this.powers.tryActivate({
-          canLaunch: this.modeManager.current.stuntEnabled,
-          launch: (force) => this.car.launch(force),
+          launch: (force) => this.car.launch(force, true),
           dropBehind,
           forward: this.car.forward,
           normal: this.car.normal,
+          elevation: this.car.roadElevation,
           fillBoost: () => this.car.fillBoost(1),
-          surgeSpeed: () => this.car.surgeSpeed(0.78),
+          surgeSpeed: () => this.car.surgeSpeed(1.45),
         });
         if (used) {
           this.audio.powerUse();
-          this.chaseCamera.addShake(0.22);
-          this.hud.showToast(used.icon, used.name, used.short);
+          this.chaseCamera.addShake(
+            used.id === "orbit-rush" || used.id === "sand-surge" ? 0.55 : 0.35,
+          );
+          this.hud.showToast(used.icon, used.name, used.description);
         }
       }
 
@@ -596,9 +600,11 @@ export class Game {
         delta,
         this.elapsed,
         this.car.normal,
+        this.car.mesh.group,
       );
       if (powerTick.slicked) {
-        this.car.speed *= Math.exp(-delta * 1.8);
+        this.car.speed *= Math.exp(-delta * 3.4);
+        this.car.boost = Math.max(0, this.car.boost - delta * 0.45);
       }
 
       this.chaseCamera.update(delta, telemetry);

@@ -46,6 +46,7 @@ export class Car {
   airborneOffset = 0;
   verticalVelocity = 0;
   airtime = 0;
+  roadElevation = 0;
   modifiers: CarModifiers = { ...DEFAULT_CAR_MODIFIERS };
 
   private readonly orientation = new THREE.Quaternion();
@@ -84,7 +85,7 @@ export class Car {
   }
 
   surgeSpeed(amount = 0.72) {
-    this.speed = Math.max(this.speed + amount, 1.35);
+    this.speed = Math.max(this.speed + amount, 1.85);
   }
 
   setColor(color: number) {
@@ -96,10 +97,12 @@ export class Car {
     this.boost = Math.min(1, this.boost + 0.28);
   }
 
-  launch(force = 0.82) {
-    if (this.airborneOffset > 0.02 || this.speed < 0.35) return false;
+  launch(force = 0.82, forceJump = false) {
+    if (!forceJump && (this.airborneOffset > 0.02 || this.speed < 0.35)) {
+      return false;
+    }
     this.verticalVelocity = force;
-    this.airborneOffset = 0.012;
+    this.airborneOffset = Math.max(this.airborneOffset, 0.02);
     this.airtime = 0;
     return true;
   }
@@ -134,13 +137,22 @@ export class Car {
   update(delta: number, input: DriveInput): CarTelemetry {
     const roadInfo = this.planet.road.getRoadInfo(this.normal);
     this.onRoad = roadInfo.distance < ROAD_WIDTH * 0.72;
+    this.roadElevation = THREE.MathUtils.lerp(
+      this.roadElevation,
+      this.onRoad ? roadInfo.elevation : 0,
+      1 - Math.exp(-delta * 8),
+    );
     const mods = this.modifiers;
 
     const maxForwardSpeed = (this.onRoad ? 2.08 : 0.88) * mods.speedCapScale;
     const maxReverseSpeed = -0.42;
     const acceleration = (this.onRoad ? 1.78 : 0.92) * mods.accelScale;
-    const boostActive = input.boost && this.boost > 0.015 && this.speed > 0.25;
-    const speedLimit = boostActive ? maxForwardSpeed * 1.32 : maxForwardSpeed;
+    const powerBoost = Boolean(mods.autoBoost);
+    const boostActive =
+      (input.boost || powerBoost) && this.boost > 0.015 && this.speed > 0.15;
+    const speedLimit = boostActive
+      ? maxForwardSpeed * (1.32 + (mods.boostPush ?? 0))
+      : maxForwardSpeed;
 
     if (input.throttle > 0) {
       if (this.speed < -0.02) {
@@ -159,13 +171,19 @@ export class Car {
     }
 
     if (boostActive) {
-      this.speed += 1.38 * delta;
+      this.speed += (1.38 + (mods.boostPush ?? 0) * 2.4) * delta;
       this.boost = Math.max(
         0,
         this.boost - delta * 0.32 * mods.boostDrainScale,
       );
     } else {
-      this.boost = Math.min(1, this.boost + delta * (this.onRoad ? 0.075 : 0.035));
+      this.boost = Math.min(
+        1,
+        this.boost +
+          delta *
+            (this.onRoad ? 0.075 : 0.035) *
+            (mods.boostRegenScale ?? 1),
+      );
     }
 
     const rollingDrag = this.onRoad ? 0.16 : 0.58;
@@ -313,6 +331,7 @@ export class Car {
     const radius =
       this.planet.surfaceRadiusAt(this.normal) +
       CAR_CLEARANCE +
+      this.roadElevation +
       this.airborneOffset;
     this.mesh.group.position.copy(this.normal).multiplyScalar(radius);
     orientationFromFrame(this.normal, this.forward, this.targetOrientation);

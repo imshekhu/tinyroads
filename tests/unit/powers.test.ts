@@ -50,20 +50,21 @@ describe("arcade power system", () => {
     // Force a deterministic held power for the modifier assertion.
     (powers as unknown as { held: string }).held = "orbit-rush";
     const used = powers.tryActivate({
-      canLaunch: true,
       launch: () => true,
       dropBehind: sample.normal.clone(),
       forward: sample.tangent.clone(),
       normal: sample.normal.clone(),
+      elevation: 0,
       fillBoost: () => undefined,
       surgeSpeed: () => undefined,
     });
 
     expect(used?.id).toBe("orbit-rush");
-    expect(powers.modifiers.speedCapScale).toBeGreaterThan(1.4);
+    expect(powers.modifiers.speedCapScale).toBeGreaterThan(2);
+    expect(powers.modifiers.autoBoost).toBe(true);
     expect(powers.hud.active?.id).toBe("orbit-rush");
 
-    powers.update(3, 0, sample.normal.clone());
+    powers.update(4, 0, sample.normal.clone());
     expect(powers.hud.active).toBeNull();
 
     powers.dispose();
@@ -77,11 +78,11 @@ describe("arcade power system", () => {
     (powers as unknown as { held: string }).held = "tar-trail";
 
     const used = powers.tryActivate({
-      canLaunch: true,
       launch: () => true,
       dropBehind: sample.normal.clone(),
       forward: sample.tangent.clone(),
       normal: sample.normal.clone(),
+      elevation: 0,
       fillBoost: () => undefined,
       surgeSpeed: () => undefined,
     });

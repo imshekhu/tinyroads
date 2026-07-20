@@ -6,9 +6,14 @@ import {
   ROAD_SAMPLE_COUNT,
   ROAD_WIDTH,
 } from "../config";
-import { angularDistance, slerpDirection } from "../math/SphericalMath";
+import {
+  angularDistance,
+  orientationFromFrame,
+  slerpDirection,
+} from "../math/SphericalMath";
 import {
   CIRCUIT_SECTORS,
+  elevationFromKeys,
   inSector,
   latitudeFromKeys,
 } from "./circuitPath";
@@ -20,6 +25,7 @@ export type RoadSample = {
   position: THREE.Vector3;
   tangent: THREE.Vector3;
   progress: number;
+  elevation: number;
 };
 
 export type RoadInfo = {
@@ -28,6 +34,7 @@ export type RoadInfo = {
   tangent: THREE.Vector3;
   normal: THREE.Vector3;
   progress: number;
+  elevation: number;
   route: "coast";
 };
 
@@ -58,12 +65,12 @@ export class RoadNetwork {
     this.generateSamples();
     this.lapLength = this.measureLap();
     this.buildRoad();
+    this.buildGradeStructures();
     if (fullDecor) {
       this.buildLaneMarkings();
       this.buildChicaneKerbs();
       this.buildContainmentBarriers();
     } else {
-      // Scenic sibling circuits stay readable without dense prop clutter.
       this.buildLaneMarkings(true);
     }
   }
@@ -72,19 +79,24 @@ export class RoadNetwork {
     const count = ROAD_SAMPLE_COUNT;
     const positions: THREE.Vector3[] = [];
     const progresses: number[] = [];
+    const elevations: number[] = [];
+    const normals: THREE.Vector3[] = [];
     for (let index = 0; index < count; index += 1) {
       const progress = index / count;
       const theta = progress * Math.PI * 2 + this.definition.phase;
       const latitude = latitudeFromKeys(this.definition.keys, progress);
+      const elevation = elevationFromKeys(this.definition.keys, progress);
       const normal = new THREE.Vector3(
         Math.cos(latitude) * Math.cos(theta),
         Math.sin(latitude),
         Math.cos(latitude) * Math.sin(theta),
       ).normalize();
+      normals.push(normal);
+      elevations.push(elevation);
       positions.push(
         normal
           .clone()
-          .multiplyScalar(this.surfaceRadiusAt(normal) + 0.04),
+          .multiplyScalar(this.surfaceRadiusAt(normal) + 0.04 + elevation),
       );
       progresses.push(progress);
     }
@@ -92,7 +104,7 @@ export class RoadNetwork {
     for (let index = 0; index < count; index += 1) {
       const previous = positions[(index - 1 + count) % count];
       const next = positions[(index + 1) % count];
-      const normal = positions[index].clone().normalize();
+      const normal = normals[index];
       const difference = next.clone().sub(previous);
       const tangent = difference
         .addScaledVector(normal, -difference.dot(normal))
@@ -102,7 +114,100 @@ export class RoadNetwork {
         position: positions[index],
         tangent,
         progress: progresses[index],
+        elevation: elevations[index],
       });
+    }
+  }
+
+  private buildGradeStructures() {
+    const tunnelMat = new THREE.MeshStandardMaterial({
+      color: 0x4a5568,
+      roughness: 0.85,
+      metalness: 0.15,
+    });
+    const portalMat = new THREE.MeshStandardMaterial({
+      color: 0xf6c945,
+      emissive: 0xb45309,
+      emissiveIntensity: 0.55,
+      roughness: 0.4,
+    });
+    const pillarMat = new THREE.MeshStandardMaterial({
+      color: 0xd6d3d1,
+      roughness: 0.7,
+      metalness: 0.2,
+    });
+    const railMat = new THREE.MeshStandardMaterial({
+      color: 0x94a3b8,
+      metalness: 0.55,
+      roughness: 0.35,
+    });
+
+    let previousTunnel = false;
+    for (let index = 0; index < this.samples.length; index += 4) {
+      const sample = this.samples[index]!;
+      if (sample.elevation < -0.28) {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(ROAD_WIDTH * 0.62, 0.07, 6, 18),
+          tunnelMat,
+        );
+        ring.position.copy(sample.position);
+        ring.quaternion.copy(
+          orientationFromFrame(sample.normal, sample.tangent),
+        );
+        ring.rotateY(Math.PI / 2);
+        this.group.add(ring);
+        if (!previousTunnel) {
+          const portal = new THREE.Mesh(
+            new THREE.TorusGeometry(ROAD_WIDTH * 0.68, 0.05, 6, 20),
+            portalMat,
+          );
+          portal.position.copy(sample.position);
+          portal.quaternion.copy(
+            orientationFromFrame(sample.normal, sample.tangent),
+          );
+          portal.rotateY(Math.PI / 2);
+          this.group.add(portal);
+        }
+        previousTunnel = true;
+      } else {
+        previousTunnel = false;
+      }
+
+      if (sample.elevation > 0.28) {
+        const pillarHeight = Math.max(0.25, sample.elevation + 0.08);
+        const pillar = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.06, 0.09, pillarHeight, 6),
+          pillarMat,
+        );
+        const ground = sample.normal
+          .clone()
+          .multiplyScalar(this.surfaceRadiusAt(sample.normal) + 0.02);
+        pillar.position
+          .copy(ground)
+          .addScaledVector(sample.normal, pillarHeight * 0.5);
+        pillar.quaternion.copy(
+          orientationFromFrame(sample.normal, sample.tangent),
+        );
+        this.group.add(pillar);
+
+        for (const side of [-1, 1]) {
+          const rail = new THREE.Mesh(
+            new THREE.BoxGeometry(0.04, 0.08, 0.5),
+            railMat,
+          );
+          const right = new THREE.Vector3()
+            .crossVectors(sample.normal, sample.tangent)
+            .normalize();
+          rail.position
+            .copy(sample.position)
+            .addScaledVector(sample.normal, 0.12)
+            .addScaledVector(right, side * (ROAD_WIDTH * 0.5 + 0.1));
+          rail.quaternion.copy(
+            orientationFromFrame(sample.normal, sample.tangent),
+          );
+          this.group.add(rail);
+        }
+      }
     }
   }
 
@@ -330,6 +435,7 @@ export class RoadNetwork {
       tangent: sample.tangent,
       normal: sample.normal,
       progress: sample.progress,
+      elevation: sample.elevation,
       route: "coast",
     };
   }
@@ -348,10 +454,21 @@ export class RoadNetwork {
   setActiveVisual(active: boolean) {
     this.group.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
-      if (object.name !== "eight-lane-asphalt") return;
-      const material = object.material as THREE.MeshStandardMaterial;
-      material.emissive = new THREE.Color(active ? 0x1a3040 : 0x000000);
-      material.emissiveIntensity = active ? 0.18 : 0;
+      const materials = Array.isArray(object.material)
+        ? object.material
+        : [object.material];
+      for (const material of materials) {
+        if ("opacity" in material && "transparent" in material) {
+          material.transparent = !active;
+          material.opacity = active ? 1 : 0.28;
+          if ("depthWrite" in material) material.depthWrite = active;
+        }
+        if (object.name === "eight-lane-asphalt" && "emissiveIntensity" in material) {
+          const std = material as THREE.MeshStandardMaterial;
+          std.emissive = new THREE.Color(active ? 0x1a3040 : 0x000000);
+          std.emissiveIntensity = active ? 0.22 : 0;
+        }
+      }
     });
   }
 
