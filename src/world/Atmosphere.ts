@@ -291,7 +291,7 @@ export class Atmosphere {
     this.scene.background = this.workingColor;
     if (this.scene.fog instanceof THREE.FogExp2) {
       this.scene.fog.color.copy(this.workingColor);
-      this.scene.fog.density = 0.0017 + (1 - daylight) * 0.0012;
+      this.scene.fog.density = 0.00165 + (1 - daylight) * 0.00055;
     }
 
     const top = this.skyMaterial.uniforms.topColor.value as THREE.Color;
@@ -314,8 +314,8 @@ export class Atmosphere {
     this.sunMesh.position.copy(
       sunPosition.clone().normalize().multiplyScalar(105),
     );
-    this.sunLight.intensity = 0.18 + daylight * 3.1;
-    this.ambientLight.intensity = 0.42 + daylight * 1.35;
+    this.sunLight.intensity = 0.28 + daylight * 3;
+    this.ambientLight.intensity = 0.68 + daylight * 1.1;
     this.ambientLight.color
       .set(0x8ca8d5)
       .lerp(new THREE.Color(0xc9efff), daylight);

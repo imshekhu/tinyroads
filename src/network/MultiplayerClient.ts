@@ -5,6 +5,8 @@ import {
   type JoinRequest,
   type JoinResult,
   type NetworkDriveInput,
+  type NetworkPowerEvent,
+  type PowerUse,
   type RoomSnapshot,
   type ScoreEvent,
   type ServerToClientEvents,
@@ -25,6 +27,7 @@ export class MultiplayerClient {
   latestSnapshot: RoomSnapshot | null = null;
   onSnapshot: ((snapshot: RoomSnapshot) => void) | null = null;
   onNotice: ((message: string) => void) | null = null;
+  onPowerEvent: ((event: NetworkPowerEvent) => void) | null = null;
   onStateChange: ((state: ConnectionState) => void) | null = null;
 
   private serverUrl() {
@@ -67,6 +70,7 @@ export class MultiplayerClient {
       this.onSnapshot?.(snapshot);
     });
     this.socket.on("room:notice", (message) => this.onNotice?.(message));
+    this.socket.on("power:spawn", (event) => this.onPowerEvent?.(event));
     this.socket.on("disconnect", () => this.setState("connecting"));
     this.socket.on("connect_error", () => this.setState("error"));
     this.socket.on("connect", () => {
@@ -147,6 +151,12 @@ export class MultiplayerClient {
 
   sendScore(event: ScoreEvent) {
     if (this.socket?.connected) this.socket.emit("score:event", event);
+  }
+
+  sendPowerUse(event: PowerUse) {
+    if (this.socket?.connected && this.state === "connected") {
+      this.socket.emit("power:use", event);
+    }
   }
 
   disconnect() {

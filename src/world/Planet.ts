@@ -15,13 +15,14 @@ import { WorldScenery } from "./WorldScenery";
 
 export class Planet {
   readonly group = new THREE.Group();
-  readonly circuits: RoadNetwork[] = [];
+  readonly road: RoadNetwork;
   readonly oceanMaterial: THREE.MeshPhongMaterial;
   readonly scenery: WorldScenery;
 
   private terrain: THREE.Mesh;
   private ocean: THREE.Mesh;
-  private activeIndex = 0;
+  private readonly oceanDay = new THREE.Color(COLORS.oceanDay);
+  private readonly oceanNight = new THREE.Color(COLORS.oceanNight);
   readonly seed: number;
 
   constructor(seed = 7319) {
@@ -32,16 +33,12 @@ export class Planet {
     this.oceanMaterial = this.ocean.material as THREE.MeshPhongMaterial;
     this.group.add(this.terrain, this.ocean);
 
-    for (const definition of TRACK_CATALOG) {
-      const network = new RoadNetwork(
-        (normal) => this.surfaceRadiusAt(normal),
-        definition,
-        { fullDecor: true },
-      );
-      this.circuits.push(network);
-      this.group.add(network.group);
-    }
-    this.setActiveTrack(TRACK_CATALOG[0].id);
+    this.road = new RoadNetwork(
+      (normal) => this.surfaceRadiusAt(normal),
+      TRACK_CATALOG[0],
+      { fullDecor: true },
+    );
+    this.group.add(this.road.group);
 
     this.buildTrees();
     this.buildRocks();
@@ -50,50 +47,23 @@ export class Planet {
     this.group.add(this.scenery.group);
   }
 
-  get road() {
-    return this.circuits[this.activeIndex]!;
-  }
-
   get activeTrack(): TrackDefinition {
     return this.road.definition;
   }
 
-  setActiveTrack(trackId: string) {
-    const index = this.circuits.findIndex(
-      (circuit) => circuit.definition.id === trackId,
-    );
-    this.activeIndex = index >= 0 ? index : 0;
-    this.circuits.forEach((circuit, circuitIndex) => {
-      const active = circuitIndex === this.activeIndex;
-      circuit.setActiveVisual(active);
-      // Only the driven circuit keeps heavy barriers/kerbs density feel.
-      circuit.group.visible = true;
-    });
-  }
-
   nearestRoadDistance(normal: THREE.Vector3) {
-    let best = Infinity;
-    for (const circuit of this.circuits) {
-      best = Math.min(best, circuit.getRoadInfo(normal).distance);
-    }
-    return best;
+    return this.road.getRoadInfo(normal).distance;
   }
 
   terrainHeight(normal: THREE.Vector3) {
     const n = normal;
     const theta = Math.atan2(n.z, n.x);
-    let roadContinent = 0;
-    for (const definition of TRACK_CATALOG) {
-      const progress =
-        (((theta - definition.phase) / (Math.PI * 2)) % 1 + 1) % 1;
-      const routeLat = latitudeFromKeys(definition.keys, progress);
-      const mainY = Math.sin(routeLat);
-      const routeDistance = Math.abs(n.y - mainY);
-      roadContinent = Math.max(
-        roadContinent,
-        Math.max(0, 1 - routeDistance / 0.28) * 0.3,
-      );
-    }
+    const definition = TRACK_CATALOG[0];
+    const progress =
+      (((theta - definition.phase) / (Math.PI * 2)) % 1 + 1) % 1;
+    const routeLat = latitudeFromKeys(definition.keys, progress);
+    const routeDistance = Math.abs(n.y - Math.sin(routeLat));
+    const roadContinent = Math.max(0, 1 - routeDistance / 0.28) * 0.3;
     const broad = fbm3D(n.x * 1.45, n.y * 1.45, n.z * 1.45, this.seed, 4);
     const detail = fbm3D(n.x * 4.8, n.y * 4.8, n.z * 4.8, this.seed + 91, 3);
     const mountain = Math.max(
@@ -310,11 +280,10 @@ export class Planet {
 
     // Sit villages well outside every ribbon — never on asphalt or kerbs.
     for (let village = 0; village < 10; village += 1) {
-      const circuit = this.circuits[village % this.circuits.length]!;
       const routeIndex =
-        (80 + village * Math.floor(circuit.samples.length / 10)) %
-        circuit.samples.length;
-      const route = circuit.samples[routeIndex]!;
+        (80 + village * Math.floor(this.road.samples.length / 10)) %
+        this.road.samples.length;
+      const route = this.road.samples[routeIndex]!;
       const side = new THREE.Vector3()
         .crossVectors(route.normal, route.tangent)
         .normalize()
@@ -354,12 +323,19 @@ export class Planet {
     }
   }
 
-  update(elapsed: number) {
-    this.oceanMaterial.emissiveIntensity = 0.07 + Math.sin(elapsed * 0.4) * 0.02;
+  update(elapsed: number, daylight = 1) {
+    const night = 1 - THREE.MathUtils.clamp(daylight, 0, 1);
+    this.oceanMaterial.color
+      .copy(this.oceanNight)
+      .lerp(this.oceanDay, daylight);
+    this.oceanMaterial.emissive.copy(this.oceanNight).lerp(this.oceanDay, daylight);
+    this.oceanMaterial.emissiveIntensity =
+      0.07 + night * 0.09 + Math.sin(elapsed * 0.4) * 0.02;
+    this.road.updateLighting(daylight, elapsed);
   }
 
   dispose() {
-    for (const circuit of this.circuits) circuit.dispose();
+    this.road.dispose();
     this.scenery.dispose();
     this.group.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;

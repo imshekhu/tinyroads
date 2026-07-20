@@ -4,12 +4,19 @@ import { angularDistance, orientationFromFrame } from "../math/SphericalMath";
 import type { RoadNetwork, RoadSample } from "../world/RoadNetwork";
 
 export type PowerId =
-  | "sand-surge"
-  | "orbit-rush"
-  | "bubble-shell"
-  | "sticky-treads"
-  | "sky-spring"
-  | "tar-trail";
+  | "speed-boost"
+  | "high-jump"
+  | "lane-trap"
+  | "cruise-missile"
+  | "shield"
+  | "smoke-screen"
+  | "emp-blast";
+
+export type OffensivePowerId =
+  | "lane-trap"
+  | "cruise-missile"
+  | "smoke-screen"
+  | "emp-blast";
 
 export type PowerDefinition = {
   id: PowerId;
@@ -21,64 +28,76 @@ export type PowerDefinition = {
   description: string;
 };
 
+export type ActivatedPower = PowerDefinition;
+
 export const POWER_DEFINITIONS: Record<PowerId, PowerDefinition> = {
-  "sand-surge": {
-    id: "sand-surge",
-    name: "Sand Surge",
-    short: "Rocket launch",
-    icon: "~",
-    color: 0xe8c27a,
-    duration: 2.8,
-    description: "Beach-buggy rocket: full boost + violent forward punch.",
+  "speed-boost": {
+    id: "speed-boost",
+    name: "Speed Boost",
+    short: "Maximum velocity",
+    icon: "»",
+    color: 0xff9d35,
+    duration: 4,
+    description: "A bright nitro burst with free boost and a higher top speed.",
   },
-  "orbit-rush": {
-    id: "orbit-rush",
-    name: "Orbit Rush",
-    short: "Super speed",
-    icon: ">>",
-    color: 0xff4d6d,
-    duration: 3.8,
-    description: "Toy-car warp speed with auto-boost for the whole burst.",
-  },
-  "bubble-shell": {
-    id: "bubble-shell",
-    name: "Bubble Shell",
-    short: "Invincible",
-    icon: "O",
-    color: 0x6ad7ff,
-    duration: 6,
-    description: "Hard shell: no barrier scrapes, slicks bounce off you.",
-  },
-  "sticky-treads": {
-    id: "sticky-treads",
-    name: "Sticky Treads",
-    short: "Rail grip",
-    icon: "+",
-    color: 0x7dffb2,
-    duration: 6.5,
-    description: "Magnet tires — corner like you're on rails.",
-  },
-  "sky-spring": {
-    id: "sky-spring",
-    name: "Sky Spring",
-    short: "Mega jump",
-    icon: "^",
-    color: 0xc59bff,
+  "high-jump": {
+    id: "high-jump",
+    name: "High Jump",
+    short: "Leap clear",
+    icon: "↑",
+    color: 0xc99cff,
     duration: 0.8,
-    description: "Launch into a huge arcade leap from anywhere.",
+    description: "Spring high over traffic and track hazards.",
   },
-  "tar-trail": {
-    id: "tar-trail",
-    name: "Tar Trail",
-    short: "Oil bomb",
-    icon: "=",
-    color: 0x2b2430,
-    duration: 0.4,
-    description: "Drop a wide sticky patch that wrecks momentum.",
+  "lane-trap": {
+    id: "lane-trap",
+    name: "Lane Trap",
+    short: "Drop road spikes",
+    icon: "⌁",
+    color: 0xff4f5e,
+    duration: 0.35,
+    description: "Leave a glowing spike strip across the lane behind you.",
+  },
+  "cruise-missile": {
+    id: "cruise-missile",
+    name: "Cruise Missile",
+    short: "Fire forward",
+    icon: "➤",
+    color: 0xffd24a,
+    duration: 0.35,
+    description: "Launch a fast road-hugging missile straight ahead.",
+  },
+  shield: {
+    id: "shield",
+    name: "Shield",
+    short: "Block attacks",
+    icon: "◉",
+    color: 0x55d9ff,
+    duration: 6,
+    description: "Block every offensive power effect for six seconds.",
+  },
+  "smoke-screen": {
+    id: "smoke-screen",
+    name: "Smoke Screen",
+    short: "Cloud the lane",
+    icon: "☁",
+    color: 0xadb4c7,
+    duration: 0.35,
+    description: "Drop a dense rolling cloud that obscures and slows pursuers.",
+  },
+  "emp-blast": {
+    id: "emp-blast",
+    name: "EMP Blast",
+    short: "Lock steering",
+    icon: "ϟ",
+    color: 0x56f5ff,
+    duration: 0.45,
+    description: "Fire a forward pulse that locks steering for three seconds.",
   },
 };
 
-const POWER_POOL: PowerId[] = Object.keys(POWER_DEFINITIONS) as PowerId[];
+const POWER_POOL = Object.keys(POWER_DEFINITIONS) as PowerId[];
+const EMP_LOCK_SECONDS = 3;
 
 export type CarModifiers = {
   speedCapScale: number;
@@ -110,6 +129,35 @@ export type PowerHudState = {
   activeRemaining: number;
 };
 
+export type PowerVector = { x: number; y: number; z: number };
+
+/**
+ * Network-friendly event. `position` is a unit planet normal and `forward` is
+ * tangent to it. Plain objects are accepted so transport code need not encode
+ * Three.js classes.
+ */
+export type RemotePowerEvent = {
+  powerId: OffensivePowerId;
+  position: PowerVector;
+  forward: PowerVector;
+  elevation?: number;
+};
+
+export type RemotePowerEventResult = {
+  accepted: true;
+  blockedByShield: boolean;
+};
+
+export type PowerUpdateStatus = {
+  trap: boolean;
+  smoke: boolean;
+  emp: boolean;
+  missile: boolean;
+  steeringLocked: boolean;
+  /** Backwards-compatible alias for lane-trap contact. */
+  slicked: boolean;
+};
+
 type Capsule = {
   normal: THREE.Vector3;
   group: THREE.Group;
@@ -118,13 +166,45 @@ type Capsule = {
   material: THREE.MeshStandardMaterial;
 };
 
-type Slick = {
+type FieldEffect = {
+  type: "trap" | "smoke" | "emp";
   normal: THREE.Vector3;
-  mesh: THREE.Mesh;
+  forward: THREE.Vector3;
+  group: THREE.Group;
   life: number;
+  maxLife: number;
+  radius: number;
+  armDelay: number;
 };
 
-/** Loud, readable aura so powers feel like Mario Kart items. */
+type MissileEffect = {
+  normal: THREE.Vector3;
+  forward: THREE.Vector3;
+  group: THREE.Group;
+  life: number;
+  armDelay: number;
+};
+
+function vector(value: PowerVector) {
+  return new THREE.Vector3(value.x, value.y, value.z);
+}
+
+function disposeObject(root: THREE.Object3D) {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    geometries.add(object.geometry);
+    const meshMaterials = Array.isArray(object.material)
+      ? object.material
+      : [object.material];
+    meshMaterials.forEach((material) => materials.add(material));
+  });
+  geometries.forEach((geometry) => geometry.dispose());
+  materials.forEach((material) => material.dispose());
+}
+
+/** A readable local-car aura for timed powers. */
 export class PowerAura {
   readonly group = new THREE.Group();
   private readonly shell: THREE.Mesh;
@@ -136,42 +216,41 @@ export class PowerAura {
 
   constructor() {
     this.shellMat = new THREE.MeshStandardMaterial({
-      color: 0x6ad7ff,
-      emissive: 0x6ad7ff,
+      color: 0x55d9ff,
+      emissive: 0x55d9ff,
       emissiveIntensity: 0.8,
       transparent: true,
       opacity: 0,
       roughness: 0.15,
-      metalness: 0.1,
       depthWrite: false,
     });
     this.ringMat = new THREE.MeshBasicMaterial({
-      color: 0xff4d6d,
+      color: 0xff9d35,
       transparent: true,
       opacity: 0,
       depthWrite: false,
     });
     this.trailMat = new THREE.MeshBasicMaterial({
-      color: 0xe8c27a,
+      color: 0xff9d35,
       transparent: true,
       opacity: 0,
       depthWrite: false,
     });
     this.shell = new THREE.Mesh(
-      new THREE.SphereGeometry(0.22, 16, 12),
+      new THREE.SphereGeometry(0.24, 18, 12),
       this.shellMat,
     );
     this.ring = new THREE.Mesh(
-      new THREE.TorusGeometry(0.28, 0.035, 8, 24),
+      new THREE.TorusGeometry(0.29, 0.035, 8, 28),
       this.ringMat,
     );
     this.ring.rotation.x = Math.PI / 2;
     this.trail = new THREE.Mesh(
-      new THREE.ConeGeometry(0.12, 0.55, 8),
+      new THREE.ConeGeometry(0.13, 0.65, 10),
       this.trailMat,
     );
     this.trail.rotation.x = Math.PI;
-    this.trail.position.z = -0.35;
+    this.trail.position.z = -0.4;
     this.group.add(this.shell, this.ring, this.trail);
     this.group.visible = false;
   }
@@ -184,57 +263,44 @@ export class PowerAura {
   ) {
     this.group.position.copy(carGroup.position);
     this.group.quaternion.copy(carGroup.quaternion);
-    if (!active) {
-      this.shellMat.opacity = THREE.MathUtils.lerp(this.shellMat.opacity, 0, 0.2);
-      this.ringMat.opacity = THREE.MathUtils.lerp(this.ringMat.opacity, 0, 0.2);
-      this.trailMat.opacity = THREE.MathUtils.lerp(this.trailMat.opacity, 0, 0.2);
-      this.group.visible =
-        this.shellMat.opacity > 0.02 ||
-        this.ringMat.opacity > 0.02 ||
-        this.trailMat.opacity > 0.02;
-      return;
-    }
-
-    this.group.visible = true;
-    const pulse = 0.7 + Math.sin(elapsed * 10) * 0.3;
-    this.shellMat.color.setHex(active.color);
-    this.shellMat.emissive.setHex(active.color);
-    this.ringMat.color.setHex(active.color);
-    this.trailMat.color.setHex(active.color);
-
-    const showShell = active.id === "bubble-shell" || active.id === "sticky-treads";
-    const showRing = active.id === "orbit-rush" || active.id === "sand-surge";
-    const showTrail =
-      active.id === "orbit-rush" ||
-      active.id === "sand-surge" ||
-      active.id === "sky-spring";
-
+    const blend = 1 - Math.exp(-delta * 10);
+    const pulse = 0.72 + Math.sin(elapsed * 10) * 0.28;
+    const showShell = active?.id === "shield";
+    const showRing =
+      active?.id === "speed-boost" ||
+      active?.id === "high-jump" ||
+      active?.id === "emp-blast";
+    const showTrail = active?.id === "speed-boost";
+    const color = active?.color ?? 0xffffff;
+    this.shellMat.color.setHex(color);
+    this.shellMat.emissive.setHex(color);
+    this.ringMat.color.setHex(color);
+    this.trailMat.color.setHex(color);
     this.shellMat.opacity = THREE.MathUtils.lerp(
       this.shellMat.opacity,
-      showShell ? 0.35 * pulse : 0,
-      1 - Math.exp(-delta * 10),
+      showShell ? 0.38 * pulse : 0,
+      blend,
     );
     this.ringMat.opacity = THREE.MathUtils.lerp(
       this.ringMat.opacity,
-      showRing ? 0.85 * pulse : 0,
-      1 - Math.exp(-delta * 10),
+      showRing ? 0.9 * pulse : 0,
+      blend,
     );
     this.trailMat.opacity = THREE.MathUtils.lerp(
       this.trailMat.opacity,
-      showTrail ? 0.55 * pulse : 0,
-      1 - Math.exp(-delta * 10),
+      showTrail ? 0.7 * pulse : 0,
+      blend,
     );
-    this.ring.rotation.z += delta * 6;
-    this.shell.scale.setScalar(0.95 + pulse * 0.12);
+    this.group.visible =
+      this.shellMat.opacity > 0.02 ||
+      this.ringMat.opacity > 0.02 ||
+      this.trailMat.opacity > 0.02;
+    this.ring.rotation.z += delta * 7;
+    this.shell.scale.setScalar(0.96 + pulse * 0.12);
   }
 
   dispose() {
-    this.shell.geometry.dispose();
-    this.ring.geometry.dispose();
-    this.trail.geometry.dispose();
-    this.shellMat.dispose();
-    this.ringMat.dispose();
-    this.trailMat.dispose();
+    disposeObject(this.group);
   }
 }
 
@@ -243,21 +309,17 @@ export class PowerSystem {
   readonly aura = new PowerAura();
   private readonly road: RoadNetwork;
   private readonly capsules: Capsule[] = [];
-  private readonly slicks: Slick[] = [];
+  private readonly fields: FieldEffect[] = [];
+  private readonly missiles: MissileEffect[] = [];
   private held: PowerId | null = null;
   private active: PowerId | null = null;
   private activeRemaining = 0;
-  private readonly slickMaterial = new THREE.MeshStandardMaterial({
-    color: 0x1a1520,
-    roughness: 0.92,
-    metalness: 0.05,
-    transparent: true,
-    opacity: 0.82,
-  });
+  private empRemaining = 0;
+  private smokeContact = false;
 
   constructor(road: RoadNetwork) {
     this.road = road;
-    this.group.name = "road-power-capsules";
+    this.group.name = "road-powers";
     this.buildCapsules();
   }
 
@@ -271,54 +333,49 @@ export class PowerSystem {
 
   get modifiers(): CarModifiers {
     const mods = { ...DEFAULT_CAR_MODIFIERS };
-    if (!this.active) return mods;
-    switch (this.active) {
-      case "sand-surge":
-        mods.accelScale = 2.4;
-        mods.speedCapScale = 1.55;
-        mods.boostDrainScale = 0.2;
-        mods.boostRegenScale = 3.5;
-        mods.boostPush = 0.85;
-        mods.autoBoost = true;
-        break;
-      case "orbit-rush":
-        mods.speedCapScale = 2.15;
-        mods.accelScale = 2.1;
-        mods.steerScale = 0.85;
-        mods.boostDrainScale = 0.12;
-        mods.boostPush = 1.15;
-        mods.autoBoost = true;
-        break;
-      case "bubble-shell":
-        mods.boundaryRetain = 1;
-        mods.gripScale = 1.35;
-        mods.speedCapScale = 1.08;
-        break;
-      case "sticky-treads":
-        mods.gripScale = 4.2;
-        mods.steerScale = 1.45;
-        mods.speedCapScale = 1.12;
-        mods.accelScale = 1.25;
-        break;
-      case "sky-spring":
-        mods.speedCapScale = 1.2;
-        break;
-      default:
-        break;
+    if (this.active === "speed-boost") {
+      mods.speedCapScale = 2.15;
+      mods.accelScale = 2.1;
+      mods.steerScale = 0.88;
+      mods.boostDrainScale = 0.12;
+      mods.boostRegenScale = 2.5;
+      mods.boostPush = 1.1;
+      mods.autoBoost = true;
+    } else if (this.active === "shield") {
+      mods.boundaryRetain = 1;
+      mods.gripScale = 1.25;
+    } else if (this.active === "high-jump") {
+      mods.speedCapScale = 1.15;
+    }
+    if (this.empRemaining > 0 && this.active !== "shield") {
+      mods.steerScale = 0;
+    }
+    if (this.smokeContact && this.active !== "shield") {
+      mods.steerScale *= 0.45;
+      mods.gripScale *= 0.62;
+      mods.speedCapScale *= 0.84;
     }
     return mods;
+  }
+
+  /** Deterministic pickup helper for tests, demos, and authoritative networking. */
+  grant(powerId: PowerId): PowerDefinition {
+    this.held = powerId;
+    return POWER_DEFINITIONS[powerId];
   }
 
   reset() {
     this.held = null;
     this.active = null;
     this.activeRemaining = 0;
+    this.empRemaining = 0;
+    this.smokeContact = false;
     for (const capsule of this.capsules) {
       capsule.cooldown = 0;
       capsule.group.visible = true;
     }
-    for (const slick of this.slicks) this.group.remove(slick.mesh);
-    this.slicks.length = 0;
+    while (this.fields.length > 0) this.removeField(this.fields.length - 1);
+    while (this.missiles.length > 0) this.removeMissile(this.missiles.length - 1);
   }
 
   tryPickup(carNormal: THREE.Vector3): {
@@ -326,12 +383,14 @@ export class PowerSystem {
     blocked: boolean;
   } {
     for (const capsule of this.capsules) {
-      if (capsule.cooldown > 0) continue;
-      if (angularDistance(carNormal, capsule.normal) * PLANET_RADIUS > 0.45) {
+      if (
+        capsule.cooldown > 0 ||
+        angularDistance(carNormal, capsule.normal) * PLANET_RADIUS > 0.45
+      ) {
         continue;
       }
       if (this.held) return { picked: null, blocked: true };
-      const id = POWER_POOL[Math.floor(Math.random() * POWER_POOL.length)];
+      const id = POWER_POOL[Math.floor(Math.random() * POWER_POOL.length)]!;
       this.held = id;
       capsule.cooldown = 6.5;
       capsule.group.visible = false;
@@ -348,39 +407,49 @@ export class PowerSystem {
     elevation: number;
     fillBoost: () => void;
     surgeSpeed: () => void;
-  }): PowerDefinition | null {
+  }): ActivatedPower | null {
     if (!this.held || this.active) return null;
     const id = this.held;
     const definition = POWER_DEFINITIONS[id];
     this.held = null;
 
-    if (id === "sky-spring") {
-      // Always usable — mega jump is the fantasy.
-      context.launch(1.85);
-      this.active = id;
-      this.activeRemaining = definition.duration;
-      return definition;
+    if (id === "high-jump") context.launch(1.85);
+    if (id === "speed-boost") {
+      context.fillBoost();
+      context.surgeSpeed();
     }
-
-    if (id === "tar-trail") {
-      this.spawnSlick(context.dropBehind, context.normal, context.forward, context.elevation);
-      this.spawnSlick(
-        context.dropBehind
-          .clone()
-          .addScaledVector(context.forward, -0.03)
-          .normalize(),
+    if (id === "lane-trap") {
+      this.spawnField(
+        "trap",
+        context.dropBehind,
+        context.forward,
+        context.elevation,
+        0.45,
+      );
+    }
+    if (id === "smoke-screen") {
+      this.spawnField(
+        "smoke",
+        context.dropBehind,
+        context.forward,
+        context.elevation,
+        0.45,
+      );
+    }
+    if (id === "emp-blast") {
+      const ahead = context.normal
+        .clone()
+        .addScaledVector(context.forward, 0.1)
+        .normalize();
+      this.spawnField("emp", ahead, context.forward, context.elevation, 0.4);
+    }
+    if (id === "cruise-missile") {
+      this.spawnMissile(
         context.normal,
         context.forward,
         context.elevation,
+        0.35,
       );
-      this.active = id;
-      this.activeRemaining = definition.duration;
-      return definition;
-    }
-
-    if (id === "sand-surge" || id === "orbit-rush") {
-      context.fillBoost();
-      context.surgeSpeed();
     }
 
     this.active = id;
@@ -388,12 +457,46 @@ export class PowerSystem {
     return definition;
   }
 
-  isOnSlick(carNormal: THREE.Vector3) {
-    if (this.active === "bubble-shell") return false;
-    return this.slicks.some(
-      (slick) =>
-        angularDistance(carNormal, slick.normal) * PLANET_RADIUS < 0.55,
+  /**
+   * Adds an offensive event received from another driver. The return value lets
+   * networking/UI acknowledge an attack that arrived while shielded.
+   */
+  receiveRemotePowerEvent(event: RemotePowerEvent): RemotePowerEventResult {
+    if (this.active === "shield") {
+      return { accepted: true, blockedByShield: true };
+    }
+    const position = vector(event.position).normalize();
+    const forward = vector(event.forward)
+      .projectOnPlane(position)
+      .normalize();
+    const elevation = event.elevation ?? 0;
+    if (event.powerId === "cruise-missile") {
+      this.spawnMissile(position, forward, elevation, 0);
+    } else {
+      const type =
+        event.powerId === "lane-trap"
+          ? "trap"
+          : event.powerId === "smoke-screen"
+            ? "smoke"
+            : "emp";
+      this.spawnField(type, position, forward, elevation, 0);
+    }
+    return { accepted: true, blockedByShield: false };
+  }
+
+  isOnHazard(carNormal: THREE.Vector3) {
+    if (this.active === "shield") return false;
+    return this.fields.some(
+      (field) =>
+        field.type === "trap" &&
+        field.armDelay <= 0 &&
+        angularDistance(carNormal, field.normal) * PLANET_RADIUS < field.radius,
     );
+  }
+
+  /** Existing Game.ts compatibility. */
+  isOnSlick(carNormal: THREE.Vector3) {
+    return this.isOnHazard(carNormal);
   }
 
   update(
@@ -401,65 +504,294 @@ export class PowerSystem {
     elapsed: number,
     carNormal: THREE.Vector3,
     carGroup?: THREE.Object3D,
-  ): { slicked: boolean } {
+  ): PowerUpdateStatus {
     if (this.active) {
       this.activeRemaining = Math.max(0, this.activeRemaining - delta);
       if (this.activeRemaining === 0) this.active = null;
     }
+    if (this.active === "shield") this.empRemaining = 0;
+    else this.empRemaining = Math.max(0, this.empRemaining - delta);
     if (carGroup) this.aura.update(delta, elapsed, this.hud.active, carGroup);
 
     for (const capsule of this.capsules) {
       capsule.cooldown = Math.max(0, capsule.cooldown - delta);
       if (capsule.cooldown === 0) capsule.group.visible = true;
       capsule.group.rotation.y += delta * 1.6;
-      capsule.shell.position.y = 0.08 + Math.sin(elapsed * 4 + capsule.cooldown) * 0.03;
-      capsule.material.emissiveIntensity = 0.55 + Math.sin(elapsed * 6) * 0.25;
+      capsule.shell.position.y =
+        0.08 + Math.sin(elapsed * 4 + capsule.cooldown) * 0.03;
+      capsule.material.emissiveIntensity =
+        0.55 + Math.sin(elapsed * 6) * 0.25;
     }
 
-    let slicked = false;
-    for (let index = this.slicks.length - 1; index >= 0; index -= 1) {
-      const slick = this.slicks[index]!;
-      slick.life -= delta;
-      const material = slick.mesh.material as THREE.MeshStandardMaterial;
-      material.opacity = Math.min(0.9, slick.life / 2);
-      if (
-        angularDistance(carNormal, slick.normal) * PLANET_RADIUS < 0.55 &&
-        this.active !== "bubble-shell"
-      ) {
-        slicked = true;
+    let trap = false;
+    let smoke = false;
+    let missile = false;
+    for (let index = this.fields.length - 1; index >= 0; index -= 1) {
+      const field = this.fields[index]!;
+      field.life -= delta;
+      field.armDelay = Math.max(0, field.armDelay - delta);
+      this.animateField(field, delta, elapsed);
+      const touching =
+        field.armDelay <= 0 &&
+        angularDistance(carNormal, field.normal) * PLANET_RADIUS < field.radius;
+      if (touching && this.active !== "shield") {
+        if (field.type === "trap") trap = true;
+        if (field.type === "smoke") smoke = true;
+        if (field.type === "emp") {
+          this.empRemaining = EMP_LOCK_SECONDS;
+          this.removeField(index);
+          continue;
+        }
+      } else if (touching && field.type === "emp") {
+        this.removeField(index);
+        continue;
       }
-      if (slick.life <= 0) {
-        this.group.remove(slick.mesh);
-        slick.mesh.geometry.dispose();
-        material.dispose();
-        this.slicks.splice(index, 1);
+      if (field.life <= 0) this.removeField(index);
+    }
+
+    for (let index = this.missiles.length - 1; index >= 0; index -= 1) {
+      const effect = this.missiles[index]!;
+      effect.life -= delta;
+      effect.armDelay = Math.max(0, effect.armDelay - delta);
+      this.advanceMissile(effect, delta);
+      const touching =
+        effect.armDelay <= 0 &&
+        angularDistance(carNormal, effect.normal) * PLANET_RADIUS < 0.32;
+      if (touching) {
+        missile = this.active !== "shield";
+        this.removeMissile(index);
+      } else if (effect.life <= 0) {
+        this.removeMissile(index);
       }
     }
-    return { slicked };
+
+    const emp = this.empRemaining > 0 && this.active !== "shield";
+    this.smokeContact = smoke;
+    return {
+      trap,
+      smoke,
+      emp,
+      missile,
+      steeringLocked: emp,
+      slicked: trap,
+    };
   }
 
-  private spawnSlick(
-    behind: THREE.Vector3,
-    normal: THREE.Vector3,
-    forward: THREE.Vector3,
+  private spawnField(
+    type: FieldEffect["type"],
+    position: PowerVector,
+    forwardValue: PowerVector,
     elevation: number,
+    armDelay: number,
   ) {
-    const mesh = new THREE.Mesh(
-      new THREE.CircleGeometry(0.48, 20),
-      this.slickMaterial.clone(),
-    );
-    mesh.quaternion.copy(orientationFromFrame(normal, forward));
-    mesh.position
-      .copy(behind)
-      .normalize()
-      .multiplyScalar(PLANET_RADIUS + 0.07 + elevation);
-    mesh.rotateX(-Math.PI / 2);
-    this.group.add(mesh);
-    this.slicks.push({
-      normal: behind.clone().normalize(),
-      mesh,
-      life: 10,
+    const normal = vector(position).normalize();
+    const forward = vector(forwardValue).projectOnPlane(normal).normalize();
+    const group =
+      type === "trap"
+        ? this.createTrapVfx()
+        : type === "smoke"
+          ? this.createSmokeVfx()
+          : this.createEmpVfx();
+    group.position
+      .copy(normal)
+      .multiplyScalar(PLANET_RADIUS + elevation + (type === "smoke" ? 0.18 : 0.07));
+    group.quaternion.copy(orientationFromFrame(normal, forward));
+    this.group.add(group);
+    const life = type === "trap" ? 12 : type === "smoke" ? 8 : 4;
+    this.fields.push({
+      type,
+      normal,
+      forward,
+      group,
+      life,
+      maxLife: life,
+      radius: type === "smoke" ? 0.58 : type === "emp" ? 0.48 : 0.34,
+      armDelay,
     });
+  }
+
+  private createTrapVfx() {
+    const group = new THREE.Group();
+    const base = new THREE.Mesh(
+      new THREE.BoxGeometry(ROAD_WIDTH * 0.72, 0.035, 0.2),
+      new THREE.MeshStandardMaterial({
+        color: 0x36151b,
+        emissive: 0xff243c,
+        emissiveIntensity: 0.75,
+        roughness: 0.5,
+      }),
+    );
+    base.position.y = 0.015;
+    group.add(base);
+    for (let index = -3; index <= 3; index += 1) {
+      const spike = new THREE.Mesh(
+        new THREE.ConeGeometry(0.035, 0.16, 5),
+        new THREE.MeshStandardMaterial({
+          color: 0xffd6d8,
+          emissive: 0xff334f,
+          emissiveIntensity: 1.2,
+          metalness: 0.65,
+        }),
+      );
+      spike.position.set(index * 0.105, 0.1, index % 2 === 0 ? -0.04 : 0.04);
+      group.add(spike);
+    }
+    return group;
+  }
+
+  private createSmokeVfx() {
+    const group = new THREE.Group();
+    for (let index = 0; index < 11; index += 1) {
+      const material = new THREE.MeshStandardMaterial({
+        color: index % 2 === 0 ? 0x343946 : 0x697080,
+        emissive: 0x1a2030,
+        emissiveIntensity: 0.25,
+        transparent: true,
+        opacity: 0.72,
+        depthWrite: false,
+        roughness: 1,
+      });
+      const puff = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(0.14 + (index % 3) * 0.035, 1),
+        material,
+      );
+      puff.position.set(
+        ((index * 37) % 11) * 0.075 - 0.37,
+        0.1 + (index % 4) * 0.075,
+        ((index * 23) % 7) * 0.07 - 0.2,
+      );
+      group.add(puff);
+    }
+    return group;
+  }
+
+  private createEmpVfx() {
+    const group = new THREE.Group();
+    for (let index = 0; index < 3; index += 1) {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(0.18 + index * 0.1, 0.018, 6, 32),
+        new THREE.MeshBasicMaterial({
+          color: index === 1 ? 0xffffff : 0x3eeaff,
+          transparent: true,
+          opacity: 0.9 - index * 0.18,
+          depthWrite: false,
+        }),
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.035 + index * 0.012;
+      group.add(ring);
+    }
+    const core = new THREE.Mesh(
+      new THREE.SphereGeometry(0.07, 10, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffffff }),
+    );
+    core.position.y = 0.07;
+    group.add(core);
+    return group;
+  }
+
+  private animateField(field: FieldEffect, delta: number, elapsed: number) {
+    const fade = THREE.MathUtils.clamp(field.life / 1.2, 0, 1);
+    field.group.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const material = object.material as THREE.Material & {
+        opacity?: number;
+        transparent?: boolean;
+      };
+      if (material.transparent && material.opacity !== undefined) {
+        material.opacity = Math.min(material.opacity, fade * 0.8);
+      }
+    });
+    if (field.type === "smoke") {
+      field.group.rotation.y += delta * 0.25;
+      field.group.children.forEach((puff, index) => {
+        puff.position.y += delta * (0.012 + (index % 3) * 0.006);
+        puff.scale.setScalar(1 + Math.sin(elapsed * 2 + index) * 0.08);
+      });
+    } else if (field.type === "emp") {
+      const age = field.maxLife - field.life;
+      field.group.rotation.y -= delta * 2.5;
+      field.group.scale.setScalar(1 + Math.min(age, 1.5) * 0.45);
+    }
+  }
+
+  private spawnMissile(
+    position: PowerVector,
+    forwardValue: PowerVector,
+    elevation: number,
+    armDelay: number,
+  ) {
+    const normal = vector(position).normalize();
+    const forward = vector(forwardValue).projectOnPlane(normal).normalize();
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.055, 0.25, 4, 10),
+      new THREE.MeshStandardMaterial({
+        color: 0xffe8a3,
+        emissive: 0xff8a1f,
+        emissiveIntensity: 0.8,
+        metalness: 0.75,
+        roughness: 0.25,
+      }),
+    );
+    body.rotation.x = Math.PI / 2;
+    const nose = new THREE.Mesh(
+      new THREE.ConeGeometry(0.058, 0.14, 10),
+      new THREE.MeshStandardMaterial({
+        color: 0xff3f32,
+        emissive: 0xff1900,
+        emissiveIntensity: 0.9,
+      }),
+    );
+    nose.rotation.x = Math.PI / 2;
+    nose.position.z = 0.22;
+    const flame = new THREE.Mesh(
+      new THREE.ConeGeometry(0.065, 0.28, 8),
+      new THREE.MeshBasicMaterial({
+        color: 0x55eaff,
+        transparent: true,
+        opacity: 0.8,
+        depthWrite: false,
+      }),
+    );
+    flame.rotation.x = -Math.PI / 2;
+    flame.position.z = -0.25;
+    group.add(body, nose, flame);
+    group.position.copy(normal).multiplyScalar(PLANET_RADIUS + elevation + 0.15);
+    group.quaternion.copy(orientationFromFrame(normal, forward));
+    this.group.add(group);
+    this.missiles.push({ normal, forward, group, life: 3.5, armDelay });
+  }
+
+  private advanceMissile(effect: MissileEffect, delta: number) {
+    const step = (delta * 3.3) / PLANET_RADIUS;
+    effect.normal
+      .addScaledVector(effect.forward, step)
+      .normalize();
+    effect.forward.projectOnPlane(effect.normal).normalize();
+    const radius = effect.group.position.length();
+    effect.group.position.copy(effect.normal).multiplyScalar(radius);
+    effect.group.quaternion.copy(
+      orientationFromFrame(effect.normal, effect.forward),
+    );
+    const flame = effect.group.children[2];
+    if (flame) flame.scale.y = 0.8 + Math.random() * 0.45;
+  }
+
+  private removeField(index: number) {
+    const field = this.fields[index];
+    if (!field) return;
+    this.group.remove(field.group);
+    disposeObject(field.group);
+    this.fields.splice(index, 1);
+  }
+
+  private removeMissile(index: number) {
+    const effect = this.missiles[index];
+    if (!effect) return;
+    this.group.remove(effect.group);
+    disposeObject(effect.group);
+    this.missiles.splice(index, 1);
   }
 
   private buildCapsules() {
@@ -514,14 +846,8 @@ export class PowerSystem {
   dispose() {
     this.reset();
     this.aura.dispose();
-    this.group.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      object.geometry.dispose();
-      const materials = Array.isArray(object.material)
-        ? object.material
-        : [object.material];
-      materials.forEach((material) => material.dispose());
-    });
-    this.slickMaterial.dispose();
+    disposeObject(this.group);
+    this.group.clear();
+    this.capsules.length = 0;
   }
 }

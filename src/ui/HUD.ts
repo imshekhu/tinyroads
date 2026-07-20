@@ -7,7 +7,7 @@ import {
 import type { PowerHudState } from "../gameplay/Powers";
 import type { CarTelemetry } from "../vehicle/Car";
 import type { SkyState } from "../world/Atmosphere";
-import { TRACK_CATALOG, type TrackDefinition } from "../world/tracks/catalog";
+import type { TrackDefinition } from "../world/tracks/catalog";
 
 export function mountInterface(root: HTMLElement) {
   root.innerHTML = `
@@ -29,25 +29,9 @@ export function mountInterface(root: HTMLElement) {
         <p class="kicker">A tiny driving adventure</p>
         <h1 id="game-title"><span>Tiny</span> Roads</h1>
         <p class="start-copy">
-          Seven eight-lane circuits wrap one oversized planet — ports, peaks,
-          deserts, neon streets, and island hops. Pick a route, then drift.
+          One demanding eight-lane circuit wraps the planet. Learn twenty
+          corners, brake for the switchbacks, and attack the neon racing line.
         </p>
-        <div class="track-picker" role="group" aria-label="Choose circuit">
-          ${TRACK_CATALOG.map(
-            (track, index) => `
-              <button
-                type="button"
-                class="track-card ${index === 0 ? "is-active" : ""}"
-                data-track="${track.id}"
-                aria-pressed="${index === 0 ? "true" : "false"}"
-              >
-                <span>${track.label}</span>
-                <b>${track.name}</b>
-                <small>${track.tagline}</small>
-              </button>
-            `,
-          ).join("")}
-        </div>
         <div class="mode-picker" role="group" aria-label="Choose game mode">
           ${Object.values(MODE_DEFINITIONS)
             .map(
@@ -236,9 +220,9 @@ export function mountInterface(root: HTMLElement) {
         <div><kbd>R</kbd><span>Return to road</span></div>
       </div>
       <p class="help-note">
-        Choose one of seven circuits before you start. Follow the lit asphalt
-        for grip, keep clear of roadside districts, and grab glowing capsules
-        for arcade powers. Drive through the glowing gate to begin a lap.
+        Follow the neon barriers through the technical circuit, brake before
+        tight direction changes, and grab glowing capsules for seven arcade
+        powers. Drive through the glowing gate to begin a lap.
       </p>
     </dialog>
   `;

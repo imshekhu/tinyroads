@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 export const MAX_PLAYERS_PER_ROOM = 12;
 
 const finite = z.number().finite();
@@ -33,10 +33,26 @@ export const ScoreEventSchema = z.object({
   points: z.number().int().min(1).max(2500),
 });
 
+export const PowerUseSchema = z.object({
+  powerId: z.enum([
+    "lane-trap",
+    "cruise-missile",
+    "smoke-screen",
+    "emp-blast",
+  ]),
+  position: VectorSchema,
+  forward: VectorSchema,
+  elevation: finite.min(-2).max(2).default(0),
+});
+
 export type NetworkMode = z.infer<typeof JoinRequestSchema>["mode"];
 export type JoinRequest = z.infer<typeof JoinRequestSchema>;
 export type NetworkDriveInput = z.infer<typeof DriveInputSchema>;
 export type ScoreEvent = z.infer<typeof ScoreEventSchema>;
+export type PowerUse = z.infer<typeof PowerUseSchema>;
+export type NetworkPowerEvent = PowerUse & {
+  sourceId: string;
+};
 
 export type NetworkPlayerState = {
   id: string;
@@ -81,6 +97,7 @@ export interface ClientToServerEvents {
   ) => void;
   "player:input": (input: NetworkDriveInput) => void;
   "score:event": (event: ScoreEvent) => void;
+  "power:use": (event: PowerUse) => void;
   "exploration:collect": (boltIndex: number) => void;
   "room:leave": () => void;
 }
@@ -90,4 +107,5 @@ export interface ServerToClientEvents {
   "room:notice": (message: string) => void;
   "player:joined": (player: NetworkPlayerState) => void;
   "player:left": (playerId: string) => void;
+  "power:spawn": (event: NetworkPowerEvent) => void;
 }

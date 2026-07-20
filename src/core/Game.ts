@@ -148,22 +148,6 @@ export class Game {
       this.cleanups.push(() => button.removeEventListener("click", select));
     });
 
-    document.querySelectorAll<HTMLButtonElement>(".track-card").forEach((button) => {
-      const select = () => {
-        if (this.started) return;
-        const trackId = button.dataset.track;
-        if (!trackId) return;
-        this.selectTrack(trackId);
-        document.querySelectorAll(".track-card").forEach((card) => {
-          const active = card === button;
-          card.classList.toggle("is-active", active);
-          card.setAttribute("aria-pressed", String(active));
-        });
-      };
-      button.addEventListener("click", select);
-      this.cleanups.push(() => button.removeEventListener("click", select));
-    });
-
     document.querySelectorAll<HTMLButtonElement>(".paint-swatch").forEach((button) => {
       const choose = () => {
         this.selectedColor = Number(button.dataset.color);
@@ -290,45 +274,6 @@ export class Game {
     this.remoteCars.group.visible = definition.multiplayer;
   }
 
-  private selectTrack(trackId: string) {
-    this.planet.setActiveTrack(trackId);
-    this.scene.remove(
-      this.trackFeatures.group,
-      this.powers.group,
-      this.collectibles.group,
-      this.race.group,
-    );
-    this.trackFeatures.dispose();
-    this.powers.dispose();
-    this.collectibles.dispose();
-    this.race.dispose();
-
-    this.trackFeatures = new TrackFeatures(this.planet.road);
-    this.powers = new PowerSystem(this.planet.road);
-    this.race = new Race(this.planet, (type, snapshot) =>
-      this.onRaceEvent(type, snapshot),
-    );
-    this.collectibles = new Collectibles(this.planet, (_position, count) =>
-      this.onCollect(count),
-    );
-    this.scene.add(
-      this.trackFeatures.group,
-      this.powers.group,
-      this.powers.aura.group,
-      this.collectibles.group,
-      this.race.group,
-    );
-    this.car.reset(0);
-    this.chaseCamera.snap();
-    this.hud.setTrack(this.planet.activeTrack);
-    this.hud.showToast(
-      "◎",
-      this.planet.activeTrack.name,
-      this.planet.activeTrack.tagline,
-    );
-    this.applyMode(this.modeManager.current.id);
-  }
-
   private bindMultiplayer(client: MultiplayerClient) {
     client.onStateChange = (state) => {
       this.hud.setNetworkStatus(
@@ -343,6 +288,22 @@ export class Game {
     };
     client.onNotice = (message) => {
       this.hud.showToast("⚑", message, "Race server synchronized");
+    };
+    client.onPowerEvent = (event) => {
+      this.powers.receiveRemotePowerEvent({
+        powerId: event.powerId,
+        position: {
+          x: event.position[0],
+          y: event.position[1],
+          z: event.position[2],
+        },
+        forward: {
+          x: event.forward[0],
+          y: event.forward[1],
+          z: event.forward[2],
+        },
+        elevation: event.elevation,
+      });
     };
     client.onSnapshot = (snapshot) => {
       this.remoteCars.applySnapshot(
@@ -514,7 +475,12 @@ export class Game {
     }
     this.elapsed += delta;
     const sky = this.atmosphere.update(this.elapsed);
-    this.planet.update(this.elapsed);
+    this.planet.update(this.elapsed, sky.daylight);
+    this.renderer.toneMappingExposure = THREE.MathUtils.lerp(
+      1.38,
+      1.08,
+      sky.daylight,
+    );
     this.remoteCars.update(delta);
 
     if (!this.started) {
@@ -590,9 +556,27 @@ export class Game {
         if (used) {
           this.audio.powerUse();
           this.chaseCamera.addShake(
-            used.id === "orbit-rush" || used.id === "sand-surge" ? 0.55 : 0.35,
+            used.id === "speed-boost" || used.id === "cruise-missile" ? 0.55 : 0.35,
           );
           this.hud.showToast(used.icon, used.name, used.description);
+          if (
+            this.modeManager.current.multiplayer &&
+            (used.id === "lane-trap" ||
+              used.id === "cruise-missile" ||
+              used.id === "smoke-screen" ||
+              used.id === "emp-blast")
+          ) {
+            const eventPosition =
+              used.id === "lane-trap" || used.id === "smoke-screen"
+                ? dropBehind
+                : this.car.normal;
+            this.multiplayer?.sendPowerUse({
+              powerId: used.id,
+              position: [eventPosition.x, eventPosition.y, eventPosition.z],
+              forward: [this.car.forward.x, this.car.forward.y, this.car.forward.z],
+              elevation: this.car.roadElevation,
+            });
+          }
         }
       }
 
@@ -603,8 +587,18 @@ export class Game {
         this.car.mesh.group,
       );
       if (powerTick.slicked) {
-        this.car.speed *= Math.exp(-delta * 3.4);
+        this.car.speed *= Math.exp(-delta * 4.2);
         this.car.boost = Math.max(0, this.car.boost - delta * 0.45);
+      }
+      if (powerTick.smoke) {
+        this.car.speed *= Math.exp(-delta * 1.15);
+        this.car.boost = Math.max(0, this.car.boost - delta * 0.18);
+      }
+      if (powerTick.missile) {
+        this.car.speed *= 0.42;
+        this.car.boost = 0;
+        this.chaseCamera.addShake(0.8);
+        this.hud.showToast("✹", "Missile hit", "Speed and boost knocked out");
       }
 
       this.chaseCamera.update(delta, telemetry);

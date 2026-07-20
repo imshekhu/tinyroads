@@ -16,25 +16,30 @@ describe("grand prix circuit path", () => {
     expect(PLANET_RADIUS).toBeGreaterThanOrEqual(40);
   });
 
-  it("catalogs seven distinct circuits", () => {
-    expect(TRACK_CATALOG).toHaveLength(7);
-    const ids = new Set(TRACK_CATALOG.map((track) => track.id));
-    expect(ids.size).toBe(7);
+  it("focuses the world on one collision-free circuit", () => {
+    expect(TRACK_CATALOG).toHaveLength(1);
+    expect(TRACK_CATALOG[0].keys.every((key) => (key.elev ?? 0) === 0)).toBe(true);
   });
 
-  it("smooths Temple Speedway corners instead of a flat ring", () => {
+  it("builds frequent technical direction changes instead of a flat ring", () => {
     const track = TRACK_CATALOG[0];
-    const main = latitudeFromKeys(track.keys, 0.08);
-    const mid = latitudeFromKeys(track.keys, 0.34);
-    const late = latitudeFromKeys(track.keys, 0.8);
-    expect(Math.abs(mid - main) + Math.abs(late - main)).toBeGreaterThan(0.05);
+    const samples = Array.from({ length: 41 }, (_, index) =>
+      latitudeFromKeys(track.keys, index / 40),
+    );
+    let reversals = 0;
+    let previousDirection = 0;
+    for (let index = 1; index < samples.length; index += 1) {
+      const direction = Math.sign(samples[index]! - samples[index - 1]!);
+      if (direction && previousDirection && direction !== previousDirection) reversals += 1;
+      if (direction) previousDirection = direction;
+    }
+    expect(reversals).toBeGreaterThanOrEqual(12);
+    expect(Math.max(...samples) - Math.min(...samples)).toBeGreaterThan(0.25);
     expect(inSector(0.18, CIRCUIT_SECTORS.primaVariante)).toBe(true);
-    expect(circuitLatitude(0.08)).toBeCloseTo(main, 5);
-    // Grade separation: temple has a flyover and a tunnel.
-    const elevBridge = track.keys.some((key) => (key.elev ?? 0) > 0.25);
-    const elevTunnel = track.keys.some((key) => (key.elev ?? 0) < -0.25);
-    expect(elevBridge).toBe(true);
-    expect(elevTunnel).toBe(true);
+    expect(circuitLatitude(0.08)).toBeCloseTo(
+      latitudeFromKeys(track.keys, 0.08),
+      5,
+    );
   });
 
   it("still targets a playable flat-out lap window", () => {

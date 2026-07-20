@@ -2,6 +2,7 @@ import type { Socket } from "socket.io";
 import {
   DriveInputSchema,
   MAX_PLAYERS_PER_ROOM,
+  PowerUseSchema,
   PROTOCOL_VERSION,
   ScoreEventSchema,
   type ClientToServerEvents,
@@ -25,6 +26,7 @@ export class Room {
   readonly players = new Map<string, ServerPlayer>();
   readonly sockets = new Map<string, GameSocket>();
   readonly collectedBolts = new Set<number>();
+  private readonly lastPowerAt = new Map<string, number>();
 
   private serverTick = 0;
   private phase: RoomSnapshot["phase"] = "waiting";
@@ -82,6 +84,18 @@ export class Room {
       );
     });
 
+    socket.on("power:use", (rawEvent) => {
+      const parsed = PowerUseSchema.safeParse(rawEvent);
+      if (!parsed.success || !this.players.has(socket.id)) return;
+      const now = Date.now();
+      if (now - (this.lastPowerAt.get(socket.id) ?? 0) < 250) return;
+      this.lastPowerAt.set(socket.id, now);
+      this.broadcastExcept(socket.id, "power:spawn", {
+        ...parsed.data,
+        sourceId: socket.id,
+      });
+    });
+
     socket.on("exploration:collect", (boltIndex) => {
       if (
         this.mode !== "exploration" ||
@@ -115,6 +129,7 @@ export class Room {
   remove(playerId: string) {
     if (!this.players.has(playerId)) return;
     this.players.delete(playerId);
+    this.lastPowerAt.delete(playerId);
     const socket = this.sockets.get(playerId);
     socket?.leave(this.id);
     this.sockets.delete(playerId);
