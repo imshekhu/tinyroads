@@ -146,22 +146,23 @@ export class TrackFeatures {
       const sample = sampleAt(this.road, progress);
       const ramp = new THREE.Group();
       const deck = new THREE.Mesh(
-        new THREE.BoxGeometry(ROAD_WIDTH * 0.72, 0.035, 0.36),
+        new THREE.BoxGeometry(ROAD_WIDTH * 0.62, 0.028, 0.4),
         material,
       );
-      deck.position.y = 0.055;
-      deck.rotation.x = -0.18;
+      // Sit flush with asphalt: slight wedge, not a floating plank.
+      deck.position.y = 0.014;
+      deck.rotation.x = -0.12;
       ramp.add(deck);
       for (const x of [-0.12, 0.12]) {
         const stripe = new THREE.Mesh(
-          new THREE.BoxGeometry(0.03, 0.039, 0.32),
+          new THREE.BoxGeometry(0.028, 0.03, 0.34),
           new THREE.MeshBasicMaterial({ color: 0xffd750 }),
         );
-        stripe.position.set(x, 0.075, 0);
-        stripe.rotation.x = -0.18;
+        stripe.position.set(x, 0.03, 0);
+        stripe.rotation.x = -0.12;
         ramp.add(stripe);
       }
-      this.placeAt(ramp, sample, 0.055);
+      this.placeAt(ramp, sample, 0.014);
       ramp.traverse((object) => {
         if (object instanceof THREE.Mesh) object.castShadow = true;
       });
@@ -208,7 +209,7 @@ export class TrackFeatures {
       this.placeAt(billboard, sample, 0.01);
       billboard.position.addScaledVector(
         right,
-        side * (ROAD_WIDTH * 0.5 + 0.36),
+        side * (ROAD_WIDTH * 0.5 + 0.55),
       );
       billboard.rotation.y += side > 0 ? -0.16 : 0.16;
       this.group.add(billboard);
@@ -245,7 +246,7 @@ export class TrackFeatures {
       const side = new THREE.Vector3()
         .crossVectors(sample.normal, sample.tangent)
         .normalize();
-      tower.position.addScaledVector(side, ROAD_WIDTH * 0.5 + 0.42);
+      tower.position.addScaledVector(side, ROAD_WIDTH * 0.5 + 0.65);
       this.group.add(tower);
     });
   }
@@ -268,10 +269,10 @@ export class TrackFeatures {
           new THREE.CylinderGeometry(0.032, 0.048, 0.24, 6),
           material,
         );
-        this.placeAt(pylon, sample, 0.13);
+        this.placeAt(pylon, sample, 0.12);
         pylon.position.addScaledVector(
           right,
-          side * (ROAD_WIDTH * 0.5 + 0.06),
+          side * (ROAD_WIDTH * 0.5 + 0.38),
         );
         pylon.position.addScaledVector(sample.tangent, (index % 2) * 0.06);
         this.group.add(pylon);

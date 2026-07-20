@@ -21,17 +21,17 @@ import { TrackFeatures } from "../world/TrackFeatures";
 export class Game {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(58, 1, 0.01, 280);
+  private readonly camera = new THREE.PerspectiveCamera(58, 1, 0.01, 420);
   private readonly clock = new THREE.Clock();
   private readonly planet: Planet;
   private readonly atmosphere: Atmosphere;
   private readonly car: Car;
   private readonly controls: Controls;
   private readonly chaseCamera: ChaseCamera;
-  private readonly collectibles: Collectibles;
-  private readonly race: Race;
-  private readonly trackFeatures: TrackFeatures;
-  private readonly powers: PowerSystem;
+  private collectibles: Collectibles;
+  private race: Race;
+  private trackFeatures: TrackFeatures;
+  private powers: PowerSystem;
   private readonly modeManager = new ModeManager();
   private readonly remoteCars: RemoteCars;
   private multiplayer: MultiplayerClient | null = null;
@@ -106,6 +106,7 @@ export class Game {
     this.camera.lookAt(0, 0, 0);
     this.bindInterface();
     this.applyMode("exploration");
+    this.hud.setTrack(this.planet.activeTrack);
     this.resize();
     requestAnimationFrame(() => {
       this.hud.finishLoading();
@@ -137,6 +138,22 @@ export class Game {
         const mode = button.dataset.mode as GameMode;
         this.applyMode(mode);
         document.querySelectorAll(".mode-card").forEach((card) => {
+          const active = card === button;
+          card.classList.toggle("is-active", active);
+          card.setAttribute("aria-pressed", String(active));
+        });
+      };
+      button.addEventListener("click", select);
+      this.cleanups.push(() => button.removeEventListener("click", select));
+    });
+
+    document.querySelectorAll<HTMLButtonElement>(".track-card").forEach((button) => {
+      const select = () => {
+        if (this.started) return;
+        const trackId = button.dataset.track;
+        if (!trackId) return;
+        this.selectTrack(trackId);
+        document.querySelectorAll(".track-card").forEach((card) => {
           const active = card === button;
           card.classList.toggle("is-active", active);
           card.setAttribute("aria-pressed", String(active));
@@ -272,6 +289,44 @@ export class Game {
     this.remoteCars.group.visible = definition.multiplayer;
   }
 
+  private selectTrack(trackId: string) {
+    this.planet.setActiveTrack(trackId);
+    this.scene.remove(
+      this.trackFeatures.group,
+      this.powers.group,
+      this.collectibles.group,
+      this.race.group,
+    );
+    this.trackFeatures.dispose();
+    this.powers.dispose();
+    this.collectibles.dispose();
+    this.race.dispose();
+
+    this.trackFeatures = new TrackFeatures(this.planet.road);
+    this.powers = new PowerSystem(this.planet.road);
+    this.race = new Race(this.planet, (type, snapshot) =>
+      this.onRaceEvent(type, snapshot),
+    );
+    this.collectibles = new Collectibles(this.planet, (_position, count) =>
+      this.onCollect(count),
+    );
+    this.scene.add(
+      this.trackFeatures.group,
+      this.powers.group,
+      this.collectibles.group,
+      this.race.group,
+    );
+    this.car.reset(0);
+    this.chaseCamera.snap();
+    this.hud.setTrack(this.planet.activeTrack);
+    this.hud.showToast(
+      "◎",
+      this.planet.activeTrack.name,
+      this.planet.activeTrack.tagline,
+    );
+    this.applyMode(this.modeManager.current.id);
+  }
+
   private bindMultiplayer(client: MultiplayerClient) {
     client.onStateChange = (state) => {
       this.hud.setNetworkStatus(
@@ -391,11 +446,11 @@ export class Game {
   }
 
   private updatePreview(delta: number) {
-    const orbit = this.elapsed * 0.055;
-    const radius = 54;
+    const orbit = this.elapsed * 0.045;
+    const radius = 96;
     this.camera.position.set(
       Math.cos(orbit) * radius,
-      20 + Math.sin(orbit * 0.6) * 3.5,
+      34 + Math.sin(orbit * 0.6) * 6,
       Math.sin(orbit) * radius,
     );
     this.camera.up.set(0, 1, 0);

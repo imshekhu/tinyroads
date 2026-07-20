@@ -218,12 +218,68 @@ a:focus-visible {
   line-height: 1.55;
 }
 
+.track-picker {
+  display: grid;
+  max-width: 720px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 18px;
+}
+
+.track-card {
+  display: flex;
+  min-height: 68px;
+  flex-direction: column;
+  align-items: flex-start;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 5px;
+  padding: 8px 9px;
+  background: rgba(16, 22, 26, 0.5);
+  color: white;
+  text-align: left;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.track-card:hover {
+  transform: translateY(-2px);
+}
+
+.track-card.is-active {
+  border-color: #7dd3fc;
+  background: rgba(56, 189, 248, 0.14);
+}
+
+.track-card span {
+  color: #7dd3fc;
+  font-size: 7px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.track-card b {
+  margin-top: 3px;
+  font-size: 10px;
+}
+
+.track-card small {
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 6.5px;
+  line-height: 1.35;
+}
+
 .mode-picker {
   display: grid;
   max-width: 620px;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  margin-top: 22px;
+  margin-top: 14px;
 }
 
 .mode-card {

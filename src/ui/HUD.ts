@@ -7,6 +7,7 @@ import {
 import type { PowerHudState } from "../gameplay/Powers";
 import type { CarTelemetry } from "../vehicle/Car";
 import type { SkyState } from "../world/Atmosphere";
+import { TRACK_CATALOG, type TrackDefinition } from "../world/tracks/catalog";
 
 export function mountInterface(root: HTMLElement) {
   root.innerHTML = `
@@ -28,9 +29,25 @@ export function mountInterface(root: HTMLElement) {
         <p class="kicker">A tiny driving adventure</p>
         <h1 id="game-title"><span>Tiny</span> Roads</h1>
         <p class="start-copy">
-          Attack an eight-lane Temple-of-Speed circuit — long straights,
-          chicanes, sweeping rights — then snag capsules and chain drifts.
+          Seven eight-lane circuits wrap one oversized planet — ports, peaks,
+          deserts, neon streets, and island hops. Pick a route, then drift.
         </p>
+        <div class="track-picker" role="group" aria-label="Choose circuit">
+          ${TRACK_CATALOG.map(
+            (track, index) => `
+              <button
+                type="button"
+                class="track-card ${index === 0 ? "is-active" : ""}"
+                data-track="${track.id}"
+                aria-pressed="${index === 0 ? "true" : "false"}"
+              >
+                <span>${track.label}</span>
+                <b>${track.name}</b>
+                <small>${track.tagline}</small>
+              </button>
+            `,
+          ).join("")}
+        </div>
         <div class="mode-picker" role="group" aria-label="Choose game mode">
           ${Object.values(MODE_DEFINITIONS)
             .map(
@@ -132,7 +149,7 @@ export function mountInterface(root: HTMLElement) {
       </aside>
 
       <aside class="race-card" id="race-card">
-        <p class="ui-label">Island loop / 02</p>
+        <p class="ui-label" id="track-label">Temple Speedway / 02</p>
         <div class="race-time" id="race-time">--:--.---</div>
         <div class="race-details">
           <span id="race-status">Find the glowing start gate</span>
@@ -219,9 +236,9 @@ export function mountInterface(root: HTMLElement) {
         <div><kbd>R</kbd><span>Return to road</span></div>
       </div>
       <p class="help-note">
-        Follow the dark road for grip. Grab glowing road capsules for arcade
-        powers—Sand Surge, Orbit Rush, Bubble Shell, Sticky Treads, Sky Spring,
-        and Tar Trail. Drive through the glowing gate to begin a lap.
+        Choose one of seven circuits before you start. Follow the lit asphalt
+        for grip, keep clear of roadside districts, and grab glowing capsules
+        for arcade powers. Drive through the glowing gate to begin a lap.
       </p>
     </dialog>
   `;
@@ -321,13 +338,16 @@ export class HUD {
       .classList.toggle("is-mode-hidden", !definition.raceEnabled);
     document.querySelector<HTMLElement>(".objective-card .ui-label")!.textContent =
       mode === "freestyle" ? "Stunt run / 01" : "Road trip / 01";
-    document.querySelector<HTMLElement>(".race-card .ui-label")!.textContent =
-      mode === "multiplayer-race" ? "Live planet prix / 02" : "Grand prix loop / 02";
     this.networkStatus.textContent = definition.multiplayer
       ? "Connecting"
       : mode === "freestyle"
         ? "Freestyle"
         : "Solo";
+  }
+
+  setTrack(track: TrackDefinition) {
+    const label = document.querySelector<HTMLElement>("#track-label");
+    if (label) label.textContent = `${track.name} / 02`;
   }
 
   setNetworkStatus(status: string) {

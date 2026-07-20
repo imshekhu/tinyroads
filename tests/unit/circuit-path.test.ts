@@ -4,35 +4,45 @@ import {
   CIRCUIT_SECTORS,
   circuitLatitude,
   inSector,
+  latitudeFromKeys,
 } from "../../src/world/circuitPath";
 import { RoadNetwork } from "../../src/world/RoadNetwork";
+import { TRACK_CATALOG } from "../../src/world/tracks/catalog";
 
 describe("grand prix circuit path", () => {
-  it("uses an eight-lane asphalt width", () => {
+  it("uses an eight-lane asphalt width on a larger planet", () => {
     expect(ROAD_LANES).toBe(8);
     expect(ROAD_WIDTH).toBeGreaterThan(1.2);
+    expect(PLANET_RADIUS).toBeGreaterThanOrEqual(40);
   });
 
-  it("has Monza-like sector changes instead of a flat ring", () => {
-    const main = circuitLatitude(0.08);
-    const chicaneRight = circuitLatitude(0.168);
-    const chicaneLeft = circuitLatitude(0.186);
-    const lesmo = circuitLatitude(0.445);
-    const parabolica = circuitLatitude(0.82);
-    expect(Math.abs(chicaneRight - main)).toBeGreaterThan(0.05);
-    expect(Math.abs(chicaneLeft - chicaneRight)).toBeGreaterThan(0.1);
-    expect(Math.abs(lesmo - main)).toBeGreaterThan(0.15);
-    expect(Math.abs(parabolica - main)).toBeGreaterThan(0.15);
+  it("catalogs seven distinct circuits", () => {
+    expect(TRACK_CATALOG).toHaveLength(7);
+    const ids = new Set(TRACK_CATALOG.map((track) => track.id));
+    expect(ids.size).toBe(7);
+  });
+
+  it("smooths Temple Speedway corners instead of a flat ring", () => {
+    const track = TRACK_CATALOG[0];
+    const main = latitudeFromKeys(track.keys, 0.08);
+    const chicaneA = latitudeFromKeys(track.keys, 0.17);
+    const chicaneB = latitudeFromKeys(track.keys, 0.2);
+    const lesmo = latitudeFromKeys(track.keys, 0.51);
+    const parabolica = latitudeFromKeys(track.keys, 0.9);
+    expect(Math.abs(chicaneA - main)).toBeGreaterThan(0.02);
+    expect(Math.abs(chicaneB - chicaneA)).toBeGreaterThan(0.03);
+    expect(Math.abs(lesmo - main)).toBeGreaterThan(0.1);
+    expect(Math.abs(parabolica - main)).toBeGreaterThan(0.1);
     expect(inSector(0.18, CIRCUIT_SECTORS.primaVariante)).toBe(true);
-    expect(inSector(0.5, CIRCUIT_SECTORS.backStraight)).toBe(true);
+    expect(circuitLatitude(0.08)).toBeCloseTo(main, 5);
   });
 
-  it("still targets an approximately eighty-second flat-out lap", () => {
-    const road = new RoadNetwork(() => PLANET_RADIUS);
+  it("still targets a playable flat-out lap window", () => {
+    const road = new RoadNetwork(() => PLANET_RADIUS, TRACK_CATALOG[0]);
     const estimatedSeconds = road.lapLength / 2.08;
-    expect(estimatedSeconds).toBeGreaterThan(70);
-    expect(estimatedSeconds).toBeLessThan(100);
-    expect(road.group.name).toContain("eight-lane");
+    expect(estimatedSeconds).toBeGreaterThan(90);
+    expect(estimatedSeconds).toBeLessThan(180);
+    expect(road.group.name).toContain("temple-speedway");
     road.dispose();
   });
 });

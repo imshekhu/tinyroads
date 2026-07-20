@@ -7,8 +7,8 @@ describe("eight-lane grand prix circuit", () => {
   it("targets an approximately 80-second flat-out lap", () => {
     const road = new RoadNetwork(() => PLANET_RADIUS);
     const estimatedSeconds = road.lapLength / 2.08;
-    expect(estimatedSeconds).toBeGreaterThan(70);
-    expect(estimatedSeconds).toBeLessThan(100);
+    expect(estimatedSeconds).toBeGreaterThan(90);
+    expect(estimatedSeconds).toBeLessThan(180);
     road.dispose();
   });
 

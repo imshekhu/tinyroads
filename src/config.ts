@@ -1,10 +1,13 @@
-export const PLANET_RADIUS = 26;
+/** Larger world so seven circuits and scenic districts have room to breathe. */
+export const PLANET_RADIUS = 48;
 export const OCEAN_LEVEL = 0.015;
 /** Eight-lane grand-prix asphalt width in world units. */
-export const ROAD_WIDTH = 1.32;
+export const ROAD_WIDTH = 1.45;
 export const ROAD_LANES = 8;
-export const ROAD_SAMPLE_COUNT = 1600;
+export const ROAD_SAMPLE_COUNT = 1100;
 export const CAR_CLEARANCE = 0.055;
+/** Keep props/buildings clear of asphalt + runoff. */
+export const ROAD_CLEARANCE = ROAD_WIDTH * 0.5 + 1.35;
 
 export const COLORS = {
   skyDay: 0x8ad7ff,

@@ -3,22 +3,25 @@ import {
   COLORS,
   OCEAN_LEVEL,
   PLANET_RADIUS,
+  ROAD_CLEARANCE,
   ROAD_WIDTH,
 } from "../config";
 import { orientationFromFrame, tangentNorth } from "../math/SphericalMath";
+import { latitudeFromKeys } from "./circuitPath";
 import { fbm3D, SeededRandom } from "./Noise";
-import {
-  mainRouteLatitude,
-  RoadNetwork,
-} from "./RoadNetwork";
+import { RoadNetwork } from "./RoadNetwork";
+import { TRACK_CATALOG, type TrackDefinition } from "./tracks/catalog";
+import { WorldScenery } from "./WorldScenery";
 
 export class Planet {
   readonly group = new THREE.Group();
-  readonly road: RoadNetwork;
+  readonly circuits: RoadNetwork[] = [];
   readonly oceanMaterial: THREE.MeshPhongMaterial;
+  readonly scenery: WorldScenery;
 
   private terrain: THREE.Mesh;
   private ocean: THREE.Mesh;
+  private activeIndex = 0;
   readonly seed: number;
 
   constructor(seed = 7319) {
@@ -29,33 +32,81 @@ export class Planet {
     this.oceanMaterial = this.ocean.material as THREE.MeshPhongMaterial;
     this.group.add(this.terrain, this.ocean);
 
-    this.road = new RoadNetwork((normal) => this.surfaceRadiusAt(normal));
-    this.group.add(this.road.group);
+    for (const definition of TRACK_CATALOG) {
+      const network = new RoadNetwork(
+        (normal) => this.surfaceRadiusAt(normal),
+        definition,
+        { fullDecor: true },
+      );
+      this.circuits.push(network);
+      this.group.add(network.group);
+    }
+    this.setActiveTrack(TRACK_CATALOG[0].id);
+
     this.buildTrees();
     this.buildRocks();
     this.buildVillages();
+    this.scenery = new WorldScenery(this);
+    this.group.add(this.scenery.group);
+  }
+
+  get road() {
+    return this.circuits[this.activeIndex]!;
+  }
+
+  get activeTrack(): TrackDefinition {
+    return this.road.definition;
+  }
+
+  setActiveTrack(trackId: string) {
+    const index = this.circuits.findIndex(
+      (circuit) => circuit.definition.id === trackId,
+    );
+    this.activeIndex = index >= 0 ? index : 0;
+    this.circuits.forEach((circuit, circuitIndex) => {
+      const active = circuitIndex === this.activeIndex;
+      circuit.setActiveVisual(active);
+      // Only the driven circuit keeps heavy barriers/kerbs density feel.
+      circuit.group.visible = true;
+    });
+  }
+
+  nearestRoadDistance(normal: THREE.Vector3) {
+    let best = Infinity;
+    for (const circuit of this.circuits) {
+      best = Math.min(best, circuit.getRoadInfo(normal).distance);
+    }
+    return best;
   }
 
   terrainHeight(normal: THREE.Vector3) {
     const n = normal;
     const theta = Math.atan2(n.z, n.x);
-    const mainY = Math.sin(mainRouteLatitude(theta));
-    const routeDistance = Math.abs(n.y - mainY);
-    // Wider land shelf under the eight-lane GP ribbon and its runoff.
-    const roadContinent = Math.max(0, 1 - routeDistance / 0.3) * 0.32;
-    const broad = fbm3D(n.x * 1.65, n.y * 1.65, n.z * 1.65, this.seed, 4);
-    const detail = fbm3D(n.x * 5.2, n.y * 5.2, n.z * 5.2, this.seed + 91, 3);
+    let roadContinent = 0;
+    for (const definition of TRACK_CATALOG) {
+      const progress =
+        (((theta - definition.phase) / (Math.PI * 2)) % 1 + 1) % 1;
+      const routeLat = latitudeFromKeys(definition.keys, progress);
+      const mainY = Math.sin(routeLat);
+      const routeDistance = Math.abs(n.y - mainY);
+      roadContinent = Math.max(
+        roadContinent,
+        Math.max(0, 1 - routeDistance / 0.28) * 0.3,
+      );
+    }
+    const broad = fbm3D(n.x * 1.45, n.y * 1.45, n.z * 1.45, this.seed, 4);
+    const detail = fbm3D(n.x * 4.8, n.y * 4.8, n.z * 4.8, this.seed + 91, 3);
     const mountain = Math.max(
       0,
-      fbm3D(n.x * 2.7, n.y * 2.7, n.z * 2.7, this.seed + 341, 4) - 0.22,
+      fbm3D(n.x * 2.4, n.y * 2.4, n.z * 2.4, this.seed + 341, 4) - 0.24,
     );
     return (
-      -0.075 -
-      Math.abs(n.y) * 0.09 +
+      -0.07 -
+      Math.abs(n.y) * 0.08 +
       roadContinent +
-      broad * 0.16 +
-      detail * 0.035 +
-      mountain * 0.3
+      broad * 0.15 +
+      detail * 0.03 +
+      mountain * 0.28
     );
   }
 
@@ -79,63 +130,42 @@ export class Planet {
         .set(positions.getX(index), positions.getY(index), positions.getZ(index))
         .normalize();
       const height = this.terrainHeight(normal);
-      const radius = PLANET_RADIUS + height;
       positions.setXYZ(
         index,
-        normal.x * radius,
-        normal.y * radius,
-        normal.z * radius,
+        normal.x * (PLANET_RADIUS + height),
+        normal.y * (PLANET_RADIUS + height),
+        normal.z * (PLANET_RADIUS + height),
       );
-
-      if (height < OCEAN_LEVEL + 0.025) {
-        color.copy(beach);
-      } else if (height > 0.29) {
-        color.copy(rock).lerp(high, 0.22);
-      } else {
-        const variation =
-          0.5 +
-          fbm3D(normal.x * 6, normal.y * 6, normal.z * 6, this.seed + 44, 2) *
-            0.3;
-        color.copy(low).lerp(high, THREE.MathUtils.clamp(variation, 0, 1));
-      }
+      if (height < OCEAN_LEVEL + 0.03) color.copy(beach);
+      else if (height > 0.28) color.copy(rock);
+      else color.lerpColors(low, high, Math.min(1, (height + 0.05) / 0.35));
       colors.push(color.r, color.g, color.b);
     }
-
-    geometry.setAttribute(
-      "color",
-      new THREE.Float32BufferAttribute(colors, 3),
-    );
+    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
     geometry.computeVertexNormals();
-
-    const mesh = new THREE.Mesh(
-      geometry,
-      new THREE.MeshStandardMaterial({
-        vertexColors: true,
-        roughness: 0.95,
-        metalness: 0,
-        flatShading: true,
-      }),
-    );
+    const material = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.95,
+      flatShading: true,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
     mesh.name = "terrain";
     mesh.receiveShadow = true;
-    mesh.castShadow = true;
     return mesh;
   }
 
   private buildOcean() {
-    const geometry = new THREE.SphereGeometry(
+    const geometry = new THREE.IcosahedronGeometry(
       PLANET_RADIUS + OCEAN_LEVEL,
-      96,
-      64,
+      4,
     );
     const material = new THREE.MeshPhongMaterial({
       color: COLORS.oceanDay,
-      emissive: 0x0b3340,
-      emissiveIntensity: 0.08,
-      shininess: 90,
       transparent: true,
-      opacity: 0.94,
-      side: THREE.FrontSide,
+      opacity: 0.82,
+      shininess: 55,
+      emissive: COLORS.oceanDay,
+      emissiveIntensity: 0.08,
     });
     const ocean = new THREE.Mesh(geometry, material);
     ocean.name = "ocean";
@@ -147,7 +177,7 @@ export class Planet {
     random: SeededRandom,
     avoidRoad = true,
   ): THREE.Vector3 | null {
-    for (let attempt = 0; attempt < 80; attempt += 1) {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
       const y = random.range(-0.78, 0.78);
       const theta = random.range(0, Math.PI * 2);
       const radial = Math.sqrt(1 - y * y);
@@ -157,7 +187,7 @@ export class Planet {
         Math.sin(theta) * radial,
       );
       if (this.terrainHeight(normal) < OCEAN_LEVEL + 0.055) continue;
-      if (avoidRoad && this.road.getRoadInfo(normal).distance < ROAD_WIDTH + 0.12) {
+      if (avoidRoad && this.nearestRoadDistance(normal) < ROAD_CLEARANCE) {
         continue;
       }
       return normal;
@@ -186,7 +216,7 @@ export class Planet {
 
   private buildTrees() {
     const random = new SeededRandom(this.seed + 100);
-    const count = 1200;
+    const count = 1600;
     const trunk = new THREE.InstancedMesh(
       new THREE.CylinderGeometry(0.018, 0.025, 0.14, 5),
       new THREE.MeshStandardMaterial({
@@ -207,7 +237,6 @@ export class Planet {
     );
     const upOffset = new THREE.Matrix4();
     let placed = 0;
-
     while (placed < count) {
       const normal = this.randomLandNormal(random);
       if (!normal) break;
@@ -223,21 +252,18 @@ export class Planet {
       );
       placed += 1;
     }
-
     trunk.count = placed;
     crown.count = placed;
     trunk.instanceMatrix.needsUpdate = true;
     crown.instanceMatrix.needsUpdate = true;
     trunk.castShadow = true;
     crown.castShadow = true;
-    trunk.name = "tree-trunks";
-    crown.name = "tree-crowns";
     this.group.add(trunk, crown);
   }
 
   private buildRocks() {
     const random = new SeededRandom(this.seed + 220);
-    const count = 180;
+    const count = 220;
     const rocks = new THREE.InstancedMesh(
       new THREE.DodecahedronGeometry(0.085, 0),
       new THREE.MeshStandardMaterial({
@@ -251,19 +277,20 @@ export class Planet {
     while (placed < count) {
       const normal = this.randomLandNormal(random);
       if (!normal) break;
-      const matrix = this.instanceTransform(
-        normal,
-        random.range(0.45, 1.4),
-        random.range(0, 6.28),
-        0.025,
+      rocks.setMatrixAt(
+        placed,
+        this.instanceTransform(
+          normal,
+          random.range(0.45, 1.4),
+          random.range(0, 6.28),
+          0.025,
+        ),
       );
-      rocks.setMatrixAt(placed, matrix);
       placed += 1;
     }
     rocks.count = placed;
     rocks.instanceMatrix.needsUpdate = true;
     rocks.castShadow = true;
-    rocks.name = "rocks";
     this.group.add(rocks);
   }
 
@@ -281,22 +308,26 @@ export class Planet {
       flatShading: true,
     });
 
-    for (let village = 0; village < 7; village += 1) {
+    // Sit villages well outside every ribbon — never on asphalt or kerbs.
+    for (let village = 0; village < 10; village += 1) {
+      const circuit = this.circuits[village % this.circuits.length]!;
       const routeIndex =
-        (45 + village * Math.floor(this.road.samples.length / 7)) %
-        this.road.samples.length;
-      const route = this.road.samples[routeIndex];
+        (80 + village * Math.floor(circuit.samples.length / 10)) %
+        circuit.samples.length;
+      const route = circuit.samples[routeIndex]!;
       const side = new THREE.Vector3()
         .crossVectors(route.normal, route.tangent)
         .normalize()
         .multiplyScalar(village % 2 === 0 ? 1 : -1);
+      const baseOffset = (ROAD_WIDTH * 0.5 + 1.6) / PLANET_RADIUS;
 
       for (let house = 0; house < 4; house += 1) {
         const normal = route.normal
           .clone()
-          .addScaledVector(side, 0.045 + house * 0.018)
-          .addScaledVector(route.tangent, (house - 1.5) * 0.025)
+          .addScaledVector(side, baseOffset + house * 0.012)
+          .addScaledVector(route.tangent, (house - 1.5) * 0.02)
           .normalize();
+        if (this.nearestRoadDistance(normal) < ROAD_CLEARANCE) continue;
         const forward = route.tangent
           .clone()
           .addScaledVector(normal, -route.tangent.dot(normal))
@@ -310,7 +341,6 @@ export class Planet {
         houseMesh.quaternion.copy(quaternion);
         houseMesh.scale.setScalar(random.range(0.82, 1.1));
         houseMesh.castShadow = true;
-
         const roof = new THREE.Mesh(roofGeometry, roofMaterial);
         roof.position
           .copy(basePosition)
@@ -329,7 +359,8 @@ export class Planet {
   }
 
   dispose() {
-    this.road.dispose();
+    for (const circuit of this.circuits) circuit.dispose();
+    this.scenery.dispose();
     this.group.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       object.geometry.dispose();

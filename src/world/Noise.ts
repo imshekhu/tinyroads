@@ -15,6 +15,10 @@ export class SeededRandom {
   range(min: number, max: number) {
     return min + (max - min) * this.next();
   }
+
+  pick<T>(items: readonly T[]) {
+    return items[Math.floor(this.next() * items.length)]!;
+  }
 }
 
 function hash(x: number, y: number, z: number, seed: number) {
