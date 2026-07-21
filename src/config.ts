@@ -1,4 +1,4 @@
-/** Larger world so seven circuits and scenic districts have room to breathe. */
+/** Large world with room for the technical circuit and scenic districts. */
 export const PLANET_RADIUS = 48;
 export const OCEAN_LEVEL = 0.015;
 /** Eight-lane grand-prix asphalt width in world units. */

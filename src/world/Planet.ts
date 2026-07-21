@@ -21,6 +21,14 @@ export class Planet {
 
   private terrain: THREE.Mesh;
   private ocean: THREE.Mesh;
+  private terrainPositions: THREE.BufferAttribute | null = null;
+  private readonly terrainTriangles: number[] = [];
+  private readonly terrainBins = new Map<number, number[]>();
+  private readonly groundRay = new THREE.Ray(new THREE.Vector3(), new THREE.Vector3());
+  private readonly groundA = new THREE.Vector3();
+  private readonly groundB = new THREE.Vector3();
+  private readonly groundC = new THREE.Vector3();
+  private readonly groundHit = new THREE.Vector3();
   private readonly oceanDay = new THREE.Color(COLORS.oceanDay);
   private readonly oceanNight = new THREE.Color(COLORS.oceanNight);
   readonly seed: number;
@@ -42,6 +50,7 @@ export class Planet {
 
     this.buildTrees();
     this.buildRocks();
+    this.buildMountainRanges();
     this.buildVillages();
     this.scenery = new WorldScenery(this);
     this.group.add(this.scenery.group);
@@ -84,6 +93,56 @@ export class Planet {
     return PLANET_RADIUS + this.terrainHeight(normal);
   }
 
+  /**
+   * Exact radial intersection with the rendered terrain triangles. Props use
+   * this instead of the smooth height function so their bases cannot float
+   * above the faceted low-poly mesh.
+   */
+  terrainSurfaceRadiusAt(normal: THREE.Vector3) {
+    const positions = this.terrainPositions;
+    if (!positions) return this.surfaceRadiusAt(normal);
+    const theta = (Math.atan2(normal.z, normal.x) + Math.PI * 2) % (Math.PI * 2);
+    const thetaBin = Math.floor((theta / (Math.PI * 2)) * 256) % 256;
+    const yBin = THREE.MathUtils.clamp(Math.floor(((normal.y + 1) * 0.5) * 128), 0, 127);
+    const candidates = new Set<number>();
+    for (let dy = -4; dy <= 4; dy += 1) {
+      const by = yBin + dy;
+      if (by < 0 || by >= 128) continue;
+      for (let dx = -4; dx <= 4; dx += 1) {
+        const bx = (thetaBin + dx + 256) % 256;
+        for (const triangle of this.terrainBins.get(by * 256 + bx) ?? []) {
+          candidates.add(triangle);
+        }
+      }
+    }
+    this.groundRay.direction.copy(normal).normalize();
+    let radius = -Infinity;
+    for (const triangle of candidates) {
+      const offset = triangle * 3;
+      this.groundA.fromBufferAttribute(
+        positions,
+        this.terrainTriangles[offset]!,
+      );
+      this.groundB.fromBufferAttribute(
+        positions,
+        this.terrainTriangles[offset + 1]!,
+      );
+      this.groundC.fromBufferAttribute(
+        positions,
+        this.terrainTriangles[offset + 2]!,
+      );
+      const hit = this.groundRay.intersectTriangle(
+        this.groundA,
+        this.groundB,
+        this.groundC,
+        false,
+        this.groundHit,
+      );
+      if (hit) radius = Math.max(radius, hit.length());
+    }
+    return Number.isFinite(radius) ? radius : this.surfaceRadiusAt(normal);
+  }
+
   private buildTerrain() {
     const geometry = new THREE.IcosahedronGeometry(PLANET_RADIUS, 6);
     const positions = geometry.getAttribute("position");
@@ -113,6 +172,7 @@ export class Planet {
     }
     geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
     geometry.computeVertexNormals();
+    this.buildTerrainSurfaceIndex(geometry);
     const material = new THREE.MeshStandardMaterial({
       vertexColors: true,
       roughness: 0.95,
@@ -122,6 +182,45 @@ export class Planet {
     mesh.name = "terrain";
     mesh.receiveShadow = true;
     return mesh;
+  }
+
+  private buildTerrainSurfaceIndex(geometry: THREE.BufferGeometry) {
+    const positions = geometry.getAttribute("position") as THREE.BufferAttribute;
+    const index = geometry.getIndex();
+    const triangleCount = index
+      ? Math.floor(index.count / 3)
+      : Math.floor(positions.count / 3);
+    this.terrainPositions = positions;
+    const register = (triangle: number, normal: THREE.Vector3) => {
+      const theta =
+        (Math.atan2(normal.z, normal.x) + Math.PI * 2) % (Math.PI * 2);
+      const bx = Math.floor((theta / (Math.PI * 2)) * 256) % 256;
+      const by = THREE.MathUtils.clamp(
+        Math.floor(((normal.y + 1) * 0.5) * 128),
+        0,
+        127,
+      );
+      const key = by * 256 + bx;
+      const bin = this.terrainBins.get(key) ?? [];
+      if (!bin.includes(triangle)) bin.push(triangle);
+      this.terrainBins.set(key, bin);
+    };
+    for (let triangle = 0; triangle < triangleCount; triangle += 1) {
+      const a = index ? index.getX(triangle * 3) : triangle * 3;
+      const b = index ? index.getX(triangle * 3 + 1) : triangle * 3 + 1;
+      const c = index ? index.getX(triangle * 3 + 2) : triangle * 3 + 2;
+      this.terrainTriangles.push(a, b, c);
+      this.groundA.fromBufferAttribute(positions, a).normalize();
+      this.groundB.fromBufferAttribute(positions, b).normalize();
+      this.groundC.fromBufferAttribute(positions, c).normalize();
+      register(triangle, this.groundA);
+      register(triangle, this.groundB);
+      register(triangle, this.groundC);
+      register(
+        triangle,
+        this.groundA.clone().add(this.groundB).add(this.groundC).normalize(),
+      );
+    }
   }
 
   private buildOcean() {
@@ -176,7 +275,7 @@ export class Planet {
     const quaternion = orientationFromFrame(normal, forward);
     const position = normal
       .clone()
-      .multiplyScalar(this.surfaceRadiusAt(normal) + extraHeight);
+      .multiplyScalar(this.terrainSurfaceRadiusAt(normal) + extraHeight);
     return new THREE.Matrix4().compose(
       position,
       quaternion,
@@ -205,6 +304,8 @@ export class Planet {
       }),
       count,
     );
+    trunk.name = "grounded-tree-trunks";
+    crown.name = "grounded-tree-crowns";
     const upOffset = new THREE.Matrix4();
     let placed = 0;
     while (placed < count) {
@@ -243,6 +344,7 @@ export class Planet {
       }),
       count,
     );
+    rocks.name = "grounded-rocks";
     let placed = 0;
     while (placed < count) {
       const normal = this.randomLandNormal(random);
@@ -262,6 +364,71 @@ export class Planet {
     rocks.instanceMatrix.needsUpdate = true;
     rocks.castShadow = true;
     this.group.add(rocks);
+  }
+
+  private buildMountainRanges() {
+    const random = new SeededRandom(this.seed + 275);
+    const count = 150;
+    const peakGeometry = new THREE.ConeGeometry(0.34, 1.15, 7);
+    // A buried skirt keeps the broad base inside adjacent low-poly facets.
+    peakGeometry.translate(0, 0.44, 0);
+    const peaks = new THREE.InstancedMesh(
+      peakGeometry,
+      new THREE.MeshStandardMaterial({
+        color: 0x777b78,
+        roughness: 1,
+        flatShading: true,
+      }),
+      count,
+    );
+    const snowGeometry = new THREE.ConeGeometry(0.19, 0.32, 7);
+    snowGeometry.translate(0, 0.16, 0);
+    const snow = new THREE.InstancedMesh(
+      snowGeometry,
+      new THREE.MeshStandardMaterial({
+        color: 0xe8edf0,
+        roughness: 0.9,
+        flatShading: true,
+      }),
+      count,
+    );
+    peaks.name = "mountain-peaks";
+    snow.name = "mountain-snowcaps";
+    const matrix = new THREE.Matrix4();
+    const snowMatrix = new THREE.Matrix4();
+    const snowOffset = new THREE.Matrix4();
+    let placed = 0;
+    for (let attempt = 0; attempt < count * 35 && placed < count; attempt += 1) {
+      const normal = this.randomLandNormal(random);
+      if (!normal || Math.abs(normal.y) < 0.28) continue;
+      if (this.nearestRoadDistance(normal) < ROAD_CLEARANCE + 1.1) continue;
+      const forward = tangentNorth(normal).applyAxisAngle(
+        normal,
+        random.range(0, Math.PI * 2),
+      );
+      const scale = random.range(0.7, 1.75);
+      const heightScale = random.range(0.85, 1.8) * scale;
+      const position = normal
+        .clone()
+        .multiplyScalar(this.terrainSurfaceRadiusAt(normal));
+      matrix.compose(
+        position,
+        orientationFromFrame(normal, forward),
+        new THREE.Vector3(scale, heightScale, scale),
+      );
+      peaks.setMatrixAt(placed, matrix);
+      snowOffset.makeTranslation(0, 0.62, 0);
+      snowMatrix.copy(snowOffset).premultiply(matrix);
+      snow.setMatrixAt(placed, snowMatrix);
+      placed += 1;
+    }
+    peaks.count = placed;
+    snow.count = placed;
+    peaks.instanceMatrix.needsUpdate = true;
+    snow.instanceMatrix.needsUpdate = true;
+    peaks.castShadow = true;
+    snow.castShadow = true;
+    this.group.add(peaks, snow);
   }
 
   private buildVillages() {
@@ -302,13 +469,16 @@ export class Planet {
           .addScaledVector(normal, -route.tangent.dot(normal))
           .normalize();
         const quaternion = orientationFromFrame(normal, forward);
+        const houseScale = random.range(0.82, 1.1);
         const basePosition = normal
           .clone()
-          .multiplyScalar(this.surfaceRadiusAt(normal) + 0.085);
+          .multiplyScalar(
+            this.terrainSurfaceRadiusAt(normal) + 0.075 * houseScale,
+          );
         const houseMesh = new THREE.Mesh(houseGeometry, wallMaterial);
         houseMesh.position.copy(basePosition);
         houseMesh.quaternion.copy(quaternion);
-        houseMesh.scale.setScalar(random.range(0.82, 1.1));
+        houseMesh.scale.setScalar(houseScale);
         houseMesh.castShadow = true;
         const roof = new THREE.Mesh(roofGeometry, roofMaterial);
         roof.position
@@ -332,6 +502,7 @@ export class Planet {
     this.oceanMaterial.emissiveIntensity =
       0.07 + night * 0.09 + Math.sin(elapsed * 0.4) * 0.02;
     this.road.updateLighting(daylight, elapsed);
+    this.scenery.update(elapsed, daylight);
   }
 
   dispose() {
